@@ -1,12 +1,16 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 import kpi_master
+import logging
 
 app = Flask(__name__)
 CORS(app)
 
+logging.basicConfig(level=logging.DEBUG)
+
 @app.route('/')
 def home():
+    app.logger.info("Home route accessed")
     return "Welcome to the KPI Master API"
 
 @app.route('/api/dashboard')
