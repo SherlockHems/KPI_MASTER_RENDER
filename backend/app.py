@@ -5,6 +5,10 @@ import kpi_master
 app = Flask(__name__)
 CORS(app)
 
+@app.route('/')
+def home():
+    return "Welcome to the KPI Master API"
+
 @app.route('/api/dashboard')
 def dashboard():
     return jsonify(kpi_master.dashboard_data)
