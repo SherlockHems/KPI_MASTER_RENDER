@@ -6,7 +6,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const result = await axios.get('http://localhost:5000/api/dashboard');
+      const result = await axios.get('/api/dashboard');
       setData(result.data);
     };
     fetchData();
