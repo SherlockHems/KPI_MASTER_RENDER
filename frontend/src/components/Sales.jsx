@@ -26,10 +26,9 @@ function Sales({ searchTerm }) {
         throw new Error(response.data.error);
       }
 
-      // Add total clients count to each sales person
       const updatedSalesPersons = response.data.salesPersons.map(person => ({
         ...person,
-        totalClients: person.topClients.length // Assuming topClients contains all clients
+        totalClients: person.topClients.length
       }));
 
       setSalesData({
@@ -146,6 +145,32 @@ function Sales({ searchTerm }) {
     );
   };
 
+  // Prepare data for daily income contribution table
+  const prepareDailyIncomeData = () => {
+    return salesData.dailyContribution.map(day => {
+      const formattedDay = {
+        date: new Date(day.date).toLocaleDateString(),
+      };
+      salesData.salesPersons.forEach(person => {
+        formattedDay[person.name] = formatCurrency(day[person.name] || 0);
+      });
+      return formattedDay;
+    });
+  };
+
+  const dailyIncomeColumns = [
+    {
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
+    },
+    ...salesData.salesPersons.map(person => ({
+      title: person.name,
+      dataIndex: person.name,
+      key: person.name,
+    })),
+  ];
+
   return (
     <div>
       <h1>Sales Dashboard</h1>
@@ -232,6 +257,15 @@ function Sales({ searchTerm }) {
             {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'funds'))}
           </Col>
         </Row>
+      </Card>
+
+      <Card title="Daily Income Contribution by Sales Person" style={{ marginTop: 16 }}>
+        <Table
+          dataSource={prepareDailyIncomeData()}
+          columns={dailyIncomeColumns}
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: 'max-content' }}
+        />
       </Card>
     </div>
   );
