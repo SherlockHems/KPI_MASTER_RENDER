@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Card, Row, Col, Spin, Alert, Select, Table } from 'antd';
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Card, Row, Col, Spin, Alert, Select, Table, Radio } from 'antd';
 import axios from 'axios';
 
 const { Option } = Select;
 
-function Sales() {
+function Sales({ searchTerm }) {
   const [salesData, setSalesData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedSalesPerson, setSelectedSalesPerson] = useState(null);
+  const [contributionType, setContributionType] = useState('cumulative');
 
   useEffect(() => {
     fetchSalesData();
@@ -50,7 +51,7 @@ function Sales() {
 
     const salesPersonsData = salesPersons.map(person => ({
       name: person,
-      income: Object.values(rawData).reduce((sum, day) => sum + (day[person] || 0), 0)
+      cumulativeIncome: Object.values(rawData).reduce((sum, day) => sum + (day[person] || 0), 0)
     }));
 
     const dailyContribution = Object.entries(rawData).map(([date, incomes]) => ({
@@ -88,29 +89,42 @@ function Sales() {
       title: 'Sales Person',
       dataIndex: 'name',
       key: 'name',
+      filteredValue: [searchTerm],
+      onFilter: (value, record) => record.name.toLowerCase().includes(value.toLowerCase()),
     },
     {
       title: 'Total Income',
-      dataIndex: 'income',
-      key: 'income',
+      dataIndex: 'cumulativeIncome',
+      key: 'cumulativeIncome',
       render: (text) => formatCurrency(text),
-      sorter: (a, b) => a.income - b.income,
+      sorter: (a, b) => a.cumulativeIncome - b.cumulativeIncome,
     }
   ];
+
+  const cumulativeData = salesData.dailyContribution.reduce((acc, day) => {
+    const prevDay = acc[acc.length - 1] || {};
+    const newDay = { date: day.date };
+    salesData.salesPersons.forEach(person => {
+      newDay[person.name] = (prevDay[person.name] || 0) + (day[person.name] || 0);
+    });
+    acc.push(newDay);
+    return acc;
+  }, []);
 
   return (
     <div>
       <h1>Sales Dashboard</h1>
+
       <Row gutter={16}>
         <Col span={12}>
-          <Card title="Income Contribution by Sales Person">
+          <Card title="Cumulative Income Contribution by Sales Person">
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={salesData.salesPersons}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis tickFormatter={formatCurrency} />
                 <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="income" fill="#8884d8" />
+                <Bar dataKey="cumulativeIncome" fill="#8884d8" />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -127,8 +141,16 @@ function Sales() {
       </Row>
 
       <Card title="All Sales Persons Income Contribution" style={{ marginTop: 16 }}>
+        <Radio.Group
+          value={contributionType}
+          onChange={(e) => setContributionType(e.target.value)}
+          style={{ marginBottom: 16 }}
+        >
+          <Radio.Button value="cumulative">Cumulative</Radio.Button>
+          <Radio.Button value="daily">Daily</Radio.Button>
+        </Radio.Group>
         <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={salesData.dailyContribution}>
+          <LineChart data={contributionType === 'cumulative' ? cumulativeData : salesData.dailyContribution}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
@@ -147,7 +169,7 @@ function Sales() {
                 dataKey={person.name}
                 stroke={colors[index % colors.length]}
                 strokeWidth={2}
-                dot={false}
+                dot={contributionType === 'daily' ? { stroke: colors[index % colors.length], strokeWidth: 2, r: 4 } : false}
                 activeDot={{ r: 8 }}
               />
             ))}
@@ -166,7 +188,7 @@ function Sales() {
           ))}
         </Select>
         <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={salesData.individualPerformance[selectedSalesPerson]}>
+          <AreaChart data={salesData.individualPerformance[selectedSalesPerson]}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
@@ -177,8 +199,8 @@ function Sales() {
               formatter={(value) => formatCurrency(value)}
               labelFormatter={(label) => new Date(label).toLocaleDateString()}
             />
-            <Line type="monotone" dataKey="income" stroke="#8884d8" />
-          </LineChart>
+            <Area type="monotone" dataKey="income" stroke="#8884d8" fill="#8884d8" />
+          </AreaChart>
         </ResponsiveContainer>
       </Card>
     </div>
