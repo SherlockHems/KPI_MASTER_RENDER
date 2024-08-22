@@ -11,6 +11,7 @@ function Sales({ searchTerm }) {
   const [error, setError] = useState(null);
   const [selectedSalesPerson, setSelectedSalesPerson] = useState(null);
   const [contributionType, setContributionType] = useState('cumulative');
+  const [breakdownType, setBreakdownType] = useState('daily');
 
   useEffect(() => {
     fetchSalesData();
@@ -84,10 +85,21 @@ function Sales({ searchTerm }) {
   }, []);
 
   const prepareIndividualData = (data, dataKey) => {
-    return data.map(day => ({
-      date: day.date,
-      ...day[dataKey]
-    }));
+    if (breakdownType === 'daily') {
+      return data.map(day => ({
+        date: day.date,
+        ...day[dataKey]
+      }));
+    } else {
+      return data.reduce((acc, day) => {
+        const newDay = { date: day.date };
+        Object.keys(day[dataKey]).forEach(key => {
+          newDay[key] = (acc[acc.length - 1]?.[key] || 0) + day[dataKey][key];
+        });
+        acc.push(newDay);
+        return acc;
+      }, []);
+    }
   };
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -228,15 +240,28 @@ function Sales({ searchTerm }) {
       </Card>
 
       <Card title="Individual Sales Person Performance" style={{ marginTop: 16 }}>
-        <Select
-          style={{ width: 200, marginBottom: 16 }}
-          value={selectedSalesPerson}
-          onChange={setSelectedSalesPerson}
-        >
-          {salesData.salesPersons.map(person => (
-            <Option key={person.name} value={person.name}>{person.name}</Option>
-          ))}
-        </Select>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={12}>
+            <Select
+              style={{ width: 200 }}
+              value={selectedSalesPerson}
+              onChange={setSelectedSalesPerson}
+            >
+              {salesData.salesPersons.map(person => (
+                <Option key={person.name} value={person.name}>{person.name}</Option>
+              ))}
+            </Select>
+          </Col>
+          <Col span={12}>
+            <Radio.Group
+              value={breakdownType}
+              onChange={(e) => setBreakdownType(e.target.value)}
+            >
+              <Radio.Button value="daily">Daily</Radio.Button>
+              <Radio.Button value="cumulative">Cumulative</Radio.Button>
+            </Radio.Group>
+          </Col>
+        </Row>
         <Row gutter={16}>
           <Col span={12}>
             <h3>Breakdown by Clients</h3>
