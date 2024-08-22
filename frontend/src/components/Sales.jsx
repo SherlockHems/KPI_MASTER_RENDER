@@ -21,8 +21,14 @@ function Sales({ searchTerm }) {
       setLoading(true);
       const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/sales`);
       console.log("Sales API response:", response.data);
+      console.log("Response type:", typeof response.data);
+      console.log("Response keys:", Object.keys(response.data));
+
       if (response.data.error) {
         throw new Error(response.data.error);
+      }
+      if (!response.data || !response.data.sales_income) {
+        throw new Error("Invalid or empty sales data received");
       }
       const processedData = processData(response.data);
       setSalesData(processedData);

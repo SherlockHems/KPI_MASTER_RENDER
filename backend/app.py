@@ -39,6 +39,9 @@ except ImportError as e:
 def prepare_sales_data(daily_income, client_sales):
     logger.info("Preparing sales data")
     try:
+        if not daily_income or not client_sales:
+            logger.error("daily_income or client_sales is empty")
+            return {"error": "No sales data available"}
         sales_person_income = {}
         for date, clients in daily_income.items():
             for client, funds in clients.items():
@@ -77,6 +80,7 @@ def prepare_sales_data(daily_income, client_sales):
 
         logger.info("Sales data prepared successfully")
         return sales_data
+    
     except Exception as e:
         logger.error(f"Error preparing sales data: {str(e)}")
         logger.error(traceback.format_exc())
@@ -122,6 +126,10 @@ def load_and_process_data():
 
         daily_holdings = calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
         daily_income, sales_income, client_income = calculate_daily_income(daily_holdings, product_info, client_sales)
+
+        if not sales_income:
+            logger.error("sales_income is empty")
+            return {"error": "No sales data available"}
 
         cumulative_sales_income = calculate_cumulative_income(sales_income)
         cumulative_client_income = calculate_cumulative_income(client_income)
@@ -228,6 +236,12 @@ def sales():
             return jsonify({"error": "Data integrity check failed"}), 500
 
         logger.debug(f"sales_data: {json.dumps(sales_data, default=str)}")
+        logger.debug(f"sales_data type: {type(sales_data)}")
+        logger.debug(f"sales_data keys: {sales_data.keys() if isinstance(sales_data, dict) else 'Not a dict'}")
+
+        if not sales_data or (isinstance(sales_data, dict) and 'sales_income' not in sales_data):
+            logger.error("Sales data is empty or missing 'sales_income'")
+            return jsonify({"error": "No sales data available"}), 404
 
         result = jsonify(sales_data)
         logger.info("Sales data successfully jsonified")
