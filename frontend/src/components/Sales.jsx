@@ -130,10 +130,7 @@ function Sales({ searchTerm }) {
         <AreaChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
-          <YAxis
-            tickFormatter={formatCurrency}
-            domain={breakdownType === 'daily' ? [0, 'auto'] : ['auto', 'auto']}
-          />
+          <YAxis tickFormatter={formatCurrency} />
           <Tooltip content={<CustomTooltip />} />
           <Legend />
           {allKeys.map((key, index) => (
