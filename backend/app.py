@@ -226,19 +226,32 @@ def sales():
             logger.error("No sales data available")
             return jsonify({"error": "No sales data available"}), 404
 
-        # Convert datetime.date keys to string
-        sales_income_serializable = {
-            date.isoformat(): {
-                salesperson: income
-                for salesperson, income in daily_income.items()
-            }
-            for date, daily_income in data['sales_income'].items()
-        }
+        # Process the sales data to include client and fund information
+        processed_sales_data = {}
+        for date, daily_data in data['sales_income'].items():
+            processed_sales_data[date.isoformat()] = {}
+            for salesperson, income in daily_data.items():
+                processed_sales_data[date.isoformat()][salesperson] = {
+                    'total': income,
+                    'clients': {},
+                    'funds': {}
+                }
 
-        logger.debug(f"sales_income keys: {sales_income_serializable.keys()}")
-        logger.debug(f"First day of sales_income: {next(iter(sales_income_serializable.values()))}")
+                # Add client and fund breakdown
+                for client, client_data in data['client_income'].get(date, {}).items():
+                    if data['client_sales'].get(client) == salesperson:
+                        processed_sales_data[date.isoformat()][salesperson]['clients'][client] = {
+                            'total': sum(client_data.values()),
+                            'funds': client_data
+                        }
+                        for fund, fund_income in client_data.items():
+                            if fund not in processed_sales_data[date.isoformat()][salesperson]['funds']:
+                                processed_sales_data[date.isoformat()][salesperson]['funds'][fund] = 0
+                            processed_sales_data[date.isoformat()][salesperson]['funds'][fund] += fund_income
 
-        return jsonify({"sales_income": sales_income_serializable})
+        logger.debug(f"Processed sales data: {processed_sales_data}")
+
+        return jsonify({"sales_income": processed_sales_data})
     except Exception as e:
         logger.error(f"Error in sales route: {str(e)}")
         logger.error(traceback.format_exc())
