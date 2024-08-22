@@ -26,18 +26,9 @@ function Sales({ searchTerm }) {
         throw new Error(response.data.error);
       }
 
-      const updatedSalesPersons = response.data.salesPersons.map(person => ({
-        ...person,
-        totalClients: person.topClients.length
-      }));
-
-      setSalesData({
-        ...response.data,
-        salesPersons: updatedSalesPersons
-      });
-
-      if (updatedSalesPersons.length > 0) {
-        setSelectedSalesPerson(updatedSalesPersons[0].name);
+      setSalesData(response.data);
+      if (response.data.salesPersons.length > 0) {
+        setSelectedSalesPerson(response.data.salesPersons[0].name);
       }
     } catch (e) {
       console.error("Error fetching sales data:", e);
@@ -145,7 +136,6 @@ function Sales({ searchTerm }) {
     );
   };
 
-  // Prepare data for daily income contribution table
   const prepareDailyIncomeData = () => {
     return salesData.dailyContribution.map(day => {
       const formattedDay = {

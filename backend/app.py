@@ -83,8 +83,8 @@ def get_sales():
         for sales_person in set(person for daily in sales_income.values() for person in daily.keys()):
             sales_data['individualPerformance'][sales_person] = []
             cumulative_income = 0
-            cumulative_clients = {}
-            cumulative_funds = {}
+            all_clients = set()
+            all_funds = set()
 
             for date in sorted(sales_income.keys()):
                 if sales_person in sales_income[date]:
@@ -94,24 +94,23 @@ def get_sales():
                     client_data = sales_person_breakdowns[date][sales_person]['clients']
                     fund_data = sales_person_breakdowns[date][sales_person]['funds']
 
-                    # Update cumulative data
-                    for client, amount in client_data.items():
-                        cumulative_clients[client] = cumulative_clients.get(client, 0) + amount
-                    for fund, amount in fund_data.items():
-                        cumulative_funds[fund] = cumulative_funds.get(fund, 0) + amount
+                    all_clients.update(client_data.keys())
+                    all_funds.update(fund_data.keys())
 
                     sales_data['individualPerformance'][sales_person].append({
                         'date': date.isoformat(),
                         'income': cumulative_income,
-                        'clients': dict(cumulative_clients),
-                        'funds': dict(cumulative_funds)
+                        'clients': client_data,
+                        'funds': fund_data
                     })
 
             sales_data['salesPersons'].append({
                 'name': sales_person,
                 'cumulativeIncome': cumulative_income,
-                'topClients': sorted(cumulative_clients.items(), key=lambda x: x[1], reverse=True)[:10],
-                'topFunds': sorted(cumulative_funds.items(), key=lambda x: x[1], reverse=True)[:10]
+                'totalClients': len(all_clients),
+                'totalFunds': len(all_funds),
+                'topClients': sorted(all_clients)[:10],  # Just for reference, not used for counting
+                'topFunds': sorted(all_funds)[:10]  # Just for reference, not used for counting
             })
 
         logger.info("Sales data processed successfully")
