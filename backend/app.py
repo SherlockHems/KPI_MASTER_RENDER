@@ -3,6 +3,11 @@ from flask_cors import CORS
 import logging
 import datetime
 import pandas as pd
+import os
+
+# Add this near the top of your file, after the other imports
+logging.basicConfig(level=logging.DEBUG)
+
 
 app = Flask(__name__)
 CORS(app)
@@ -70,6 +75,12 @@ def prepare_sales_data(daily_income, client_sales):
 
     return sales_data
 
+def check_file_exists(filepath):
+    if os.path.exists(filepath):
+        logging.info(f"File exists: {filepath}")
+    else:
+        logging.error(f"File does not exist: {filepath}")
+
 
 def load_and_process_data():
     if kpi_import_error:
@@ -79,6 +90,13 @@ def load_and_process_data():
     end_date = datetime.date(2024, 6, 30)
 
     try:
+
+        # Check if files exist
+        check_file_exists('data/2023DEC.csv')
+        check_file_exists('data/TRADES_LOG.csv')
+        check_file_exists('data/PRODUCT_INFO.csv')
+        check_file_exists('data/CLIENT_LIST.csv')
+
         initial_holdings = load_initial_holdings('data/2023DEC.csv')
         trades = load_trades('data/TRADES_LOG.csv')
         product_info = load_product_info('data/PRODUCT_INFO.csv')
