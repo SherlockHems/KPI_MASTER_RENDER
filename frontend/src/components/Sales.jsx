@@ -77,40 +77,52 @@ function Sales({ searchTerm }) {
     return acc;
   }, []);
 
-  const prepareIndividualData = (data, key) => {
+  const prepareIndividualData = (data, dataKey) => {
     return data.map(day => {
-      const newDay = { date: day.date };
-      Object.entries(day[key]).forEach(([name, value]) => {
-        newDay[name] = value;
-      });
-      return newDay;
+      const sortedEntries = Object.entries(day[dataKey])
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10);
+
+      return {
+        date: day.date,
+        ...Object.fromEntries(sortedEntries)
+      };
     });
   };
 
-  const renderBreakdownChart = (data, dataKey) => (
-    <ResponsiveContainer width="100%" height={300}>
-      <AreaChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
-        <YAxis tickFormatter={formatCurrency} />
-        <Tooltip
-          formatter={(value) => formatCurrency(value)}
-          labelFormatter={(label) => new Date(label).toLocaleDateString()}
-        />
-        <Legend />
-        {Object.keys(data[0]).filter(key => key !== 'date').map((key, index) => (
-          <Area
-            key={key}
-            type="monotone"
-            dataKey={key}
-            stackId="1"
-            stroke={colors[index % colors.length]}
-            fill={colors[index % colors.length]}
+  const renderBreakdownChart = (data, dataKey) => {
+    const allKeys = new Set(data.flatMap(day => Object.keys(day).filter(key => key !== 'date')));
+    const sortedKeys = [...allKeys].sort((a, b) => {
+      const sumA = data.reduce((sum, day) => sum + (day[a] || 0), 0);
+      const sumB = data.reduce((sum, day) => sum + (day[b] || 0), 0);
+      return sumB - sumA;
+    }).slice(0, 10);
+
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <AreaChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
+          <YAxis tickFormatter={formatCurrency} />
+          <Tooltip
+            formatter={(value) => formatCurrency(value)}
+            labelFormatter={(label) => new Date(label).toLocaleDateString()}
           />
-        ))}
-      </AreaChart>
-    </ResponsiveContainer>
-  );
+          <Legend />
+          {sortedKeys.map((key, index) => (
+            <Area
+              key={key}
+              type="monotone"
+              dataKey={key}
+              stackId="1"
+              stroke={colors[index % colors.length]}
+              fill={colors[index % colors.length]}
+            />
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+    );
+  };
 
   return (
     <div>
@@ -190,11 +202,11 @@ function Sales({ searchTerm }) {
         </Select>
         <Row gutter={16}>
           <Col span={12}>
-            <h3>Breakdown by Clients</h3>
+            <h3>Breakdown by Top 10 Clients</h3>
             {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'clients'), 'clients')}
           </Col>
           <Col span={12}>
-            <h3>Breakdown by Funds</h3>
+            <h3>Breakdown by Top 10 Funds</h3>
             {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'funds'), 'funds')}
           </Col>
         </Row>
