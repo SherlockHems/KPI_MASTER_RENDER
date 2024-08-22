@@ -42,46 +42,20 @@ def prepare_sales_data(daily_income, client_sales):
         if not daily_income or not client_sales:
             logger.error("daily_income or client_sales is empty")
             return {"error": "No sales data available"}
-
         sales_person_income = {}
-        sales_person_client_breakdown = {}
-        sales_person_fund_breakdown = {}
-
         for date, clients in daily_income.items():
             for client, funds in clients.items():
                 sales_person = client_sales.get(client, "Unknown")
                 if sales_person not in sales_person_income:
                     sales_person_income[sales_person] = {}
-                    sales_person_client_breakdown[sales_person] = {}
-                    sales_person_fund_breakdown[sales_person] = {}
-
                 if date not in sales_person_income[sales_person]:
                     sales_person_income[sales_person][date] = 0
-
-                daily_client_income = sum(funds.values())
-                sales_person_income[sales_person][date] += daily_client_income
-
-                # Client breakdown
-                if client not in sales_person_client_breakdown[sales_person]:
-                    sales_person_client_breakdown[sales_person][client] = {}
-                if date not in sales_person_client_breakdown[sales_person][client]:
-                    sales_person_client_breakdown[sales_person][client][date] = 0
-                sales_person_client_breakdown[sales_person][client][date] += daily_client_income
-
-                # Fund breakdown
-                for fund, income in funds.items():
-                    if fund not in sales_person_fund_breakdown[sales_person]:
-                        sales_person_fund_breakdown[sales_person][fund] = {}
-                    if date not in sales_person_fund_breakdown[sales_person][fund]:
-                        sales_person_fund_breakdown[sales_person][fund][date] = 0
-                    sales_person_fund_breakdown[sales_person][fund][date] += income
+                sales_person_income[sales_person][date] += sum(funds.values())
 
         sales_data = {
             'salesPersons': [],
             'dailyContribution': [],
-            'individualPerformance': {},
-            'clientBreakdown': sales_person_client_breakdown,
-            'fundBreakdown': sales_person_fund_breakdown
+            'individualPerformance': {}
         }
 
         all_dates = sorted(set(date for sp_data in sales_person_income.values() for date in sp_data.keys()))
