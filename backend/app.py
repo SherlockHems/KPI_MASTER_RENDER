@@ -218,31 +218,56 @@ def dashboard():
 
 
 @app.route('/api/sales')
-def sales():
-    try:
-        logger.info("Sales route accessed")
+def get_sales():
+    sales_data = {
+        'salesPersons': [],
+        'dailyContribution': [],
+        'individualPerformance': {}
+    }
 
-        if not data or 'sales_income' not in data:
-            logger.error("No sales data available")
-            return jsonify({"error": "No sales data available"}), 404
+    # Prepare daily contribution data
+    for date in sales_income.keys():
+        daily_data = {'date': date.isoformat()}
+        for sales_person in sales_income[date].keys():
+            daily_data[sales_person] = sales_income[date][sales_person]
+        sales_data['dailyContribution'].append(daily_data)
 
-        # Convert datetime.date keys to string
-        sales_income_serializable = {
-            date.isoformat(): {
-                salesperson: income
-                for salesperson, income in daily_income.items()
-            }
-            for date, daily_income in data['sales_income'].items()
-        }
+    # Prepare individual performance and sales persons data
+    for sales_person in set(person for daily in sales_income.values() for person in daily.keys()):
+        sales_data['individualPerformance'][sales_person] = []
+        cumulative_income = 0
+        cumulative_clients = {}
+        cumulative_funds = {}
 
-        logger.debug(f"sales_income keys: {sales_income_serializable.keys()}")
-        logger.debug(f"First day of sales_income: {next(iter(sales_income_serializable.values()))}")
+        for date, daily in sales_income.items():
+            if sales_person in daily:
+                cumulative_income += daily[sales_person]
 
-        return jsonify({"sales_income": sales_income_serializable})
-    except Exception as e:
-        logger.error(f"Error in sales route: {str(e)}")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+                # Get actual client and fund data
+                client_data = sales_person_breakdowns[date][sales_person]['clients']
+                fund_data = sales_person_breakdowns[date][sales_person]['funds']
+
+                # Update cumulative data
+                for client, amount in client_data.items():
+                    cumulative_clients[client] = cumulative_clients.get(client, 0) + amount
+                for fund, amount in fund_data.items():
+                    cumulative_funds[fund] = cumulative_funds.get(fund, 0) + amount
+
+                sales_data['individualPerformance'][sales_person].append({
+                    'date': date.isoformat(),
+                    'income': cumulative_income,
+                    'clients': dict(cumulative_clients),
+                    'funds': dict(cumulative_funds)
+                })
+
+        sales_data['salesPersons'].append({
+            'name': sales_person,
+            'cumulativeIncome': cumulative_income,
+            'topClients': sorted(cumulative_clients.items(), key=lambda x: x[1], reverse=True)[:10],
+            'topFunds': sorted(cumulative_funds.items(), key=lambda x: x[1], reverse=True)[:10]
+        })
+
+    return jsonify(sales_data)
 
 
 @app.route('/api/clients')
