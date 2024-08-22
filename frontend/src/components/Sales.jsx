@@ -88,13 +88,13 @@ function Sales({ searchTerm }) {
     if (breakdownType === 'daily') {
       return data.map(day => ({
         date: day.date,
-        ...day[dataKey]
+        ...Object.fromEntries(Object.entries(day[dataKey]).map(([k, v]) => [k, Math.max(0, v)]))
       }));
     } else {
       return data.reduce((acc, day) => {
         const newDay = { date: day.date };
         Object.keys(day[dataKey]).forEach(key => {
-          newDay[key] = (acc[acc.length - 1]?.[key] || 0) + day[dataKey][key];
+          newDay[key] = Math.max(0, (acc[acc.length - 1]?.[key] || 0) + day[dataKey][key]);
         });
         acc.push(newDay);
         return acc;
@@ -124,13 +124,17 @@ function Sales({ searchTerm }) {
 
   const renderBreakdownChart = (data) => {
     const allKeys = Object.keys(data[0]).filter(key => key !== 'date');
+    const maxValue = Math.max(...data.flatMap(day => Object.values(day).filter(val => typeof val === 'number')));
 
     return (
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
-          <YAxis tickFormatter={formatCurrency} />
+          <YAxis
+            tickFormatter={formatCurrency}
+            domain={[0, maxValue]}
+          />
           <Tooltip content={<CustomTooltip />} />
           <Legend />
           {allKeys.map((key, index) => (
@@ -154,7 +158,7 @@ function Sales({ searchTerm }) {
         date: new Date(day.date).toLocaleDateString(),
       };
       salesData.salesPersons.forEach(person => {
-        formattedDay[person.name] = formatCurrency(day[person.name] || 0);
+        formattedDay[person.name] = formatCurrency(Math.max(0, day[person.name] || 0));
       });
       return formattedDay;
     });
