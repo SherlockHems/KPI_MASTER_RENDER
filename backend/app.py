@@ -35,32 +35,37 @@ forecasts = generate_forecasts(daily_income, product_info, daily_holdings, trade
 sales_person_breakdowns = generate_sales_person_breakdowns(daily_income, client_sales)
 client_breakdowns = generate_client_breakdowns(daily_income)
 
-@app.route('/api/dashboard')
-def get_dashboard():
+@app.route('/api/clients')
+def get_clients():
     try:
-        logger.info("Processing dashboard data")
-        total_income = sum(sum(client.values()) for client in daily_income[max(daily_income.keys())].values())
-        total_clients = len(set(client for day in daily_income.values() for client in day.keys()))
-        total_funds = len(set(fund for day in daily_income.values() for client in day.values() for fund in client.keys()))
-        total_sales = len(set(sales_income[max(sales_income.keys())].keys()))
+        logger.info("Processing clients data")
+        clients_data = []
 
-        income_trend = [{'date': date.isoformat(), 'income': sum(sum(client.values()) for client in clients.values())}
-                        for date, clients in daily_income.items()]
+        for sales_person, clients in client_sales.items():
+            client_list = []
+            total_client_value = 0
 
-        dashboard_data = {
-            'total_income': total_income,
-            'total_clients': total_clients,
-            'total_funds': total_funds,
-            'total_sales': total_sales,
-            'income_trend': income_trend
-        }
+            for client in clients:
+                client_value = sum(daily_income[date].get(client, {}).values() for date in daily_income)
+                client_list.append({
+                    "name": client,
+                    "value": client_value
+                })
+                total_client_value += client_value
 
-        logger.info("Dashboard data processed successfully")
-        return jsonify(dashboard_data)
+            clients_data.append({
+                "name": sales_person,
+                "clientCount": len(clients),
+                "totalClientValue": total_client_value,
+                "clients": client_list
+            })
+
+        logger.info("Clients data processed successfully")
+        return jsonify(clients_data)
     except Exception as e:
-        logger.error(f"Error processing dashboard data: {str(e)}")
+        logger.error(f"Error processing clients data: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'An error occurred while processing dashboard data'}), 500
+        return jsonify({'error': 'An error occurred while processing clients data'}), 500
 
 @app.route('/api/sales')
 def get_sales():
