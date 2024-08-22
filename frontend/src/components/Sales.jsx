@@ -26,9 +26,19 @@ function Sales({ searchTerm }) {
         throw new Error(response.data.error);
       }
 
-      setSalesData(response.data);
-      if (response.data.salesPersons.length > 0) {
-        setSelectedSalesPerson(response.data.salesPersons[0].name);
+      // Add total clients count to each sales person
+      const updatedSalesPersons = response.data.salesPersons.map(person => ({
+        ...person,
+        totalClients: person.topClients.length // Assuming topClients contains all clients
+      }));
+
+      setSalesData({
+        ...response.data,
+        salesPersons: updatedSalesPersons
+      });
+
+      if (updatedSalesPersons.length > 0) {
+        setSelectedSalesPerson(updatedSalesPersons[0].name);
       }
     } catch (e) {
       console.error("Error fetching sales data:", e);
@@ -55,6 +65,12 @@ function Sales({ searchTerm }) {
       key: 'name',
       filteredValue: [searchTerm],
       onFilter: (value, record) => record.name.toLowerCase().includes(value.toLowerCase()),
+    },
+    {
+      title: 'Total Clients',
+      dataIndex: 'totalClients',
+      key: 'totalClients',
+      sorter: (a, b) => a.totalClients - b.totalClients,
     },
     {
       title: 'Total Income',
