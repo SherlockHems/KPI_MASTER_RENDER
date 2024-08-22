@@ -72,12 +72,14 @@ def get_sales():
             'individualPerformance': {}
         }
 
+        # Prepare daily contribution data
         for date in sales_income.keys():
             daily_data = {'date': date.isoformat()}
             for sales_person in sales_income[date].keys():
                 daily_data[sales_person] = sales_income[date][sales_person]
             sales_data['dailyContribution'].append(daily_data)
 
+        # Prepare individual performance and sales persons data
         for sales_person in set(person for daily in sales_income.values() for person in daily.keys()):
             sales_data['individualPerformance'][sales_person] = []
             cumulative_income = 0
@@ -88,6 +90,7 @@ def get_sales():
                 if sales_person in sales_income[date]:
                     cumulative_income += sales_income[date][sales_person]
 
+                    # Get actual client and fund data
                     client_data = sales_person_breakdowns[date][sales_person]['clients']
                     fund_data = sales_person_breakdowns[date][sales_person]['funds']
 
@@ -106,8 +109,8 @@ def get_sales():
                 'cumulativeIncome': cumulative_income,
                 'totalClients': len(all_clients),
                 'totalFunds': len(all_funds),
-                'topClients': sorted(all_clients)[:10],
-                'topFunds': sorted(all_funds)[:10]
+                'topClients': sorted(all_clients)[:10],  # Just for reference, not used for counting
+                'topFunds': sorted(all_funds)[:10]  # Just for reference, not used for counting
             })
 
         logger.info("Sales data processed successfully")
@@ -116,38 +119,6 @@ def get_sales():
         logger.error(f"Error processing sales data: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing sales data'}), 500
-
-@app.route('/api/clients')
-def get_clients():
-    try:
-        logger.info("Processing clients data")
-        clients_data = []
-
-        for sales_person, clients in client_sales.items():
-            client_list = []
-            total_client_value = 0
-
-            for client in clients:
-                client_value = sum(sum(daily_income[date].get(client, {}).values()) for date in daily_income)
-                client_list.append({
-                    "name": client,
-                    "value": client_value
-                })
-                total_client_value += client_value
-
-            clients_data.append({
-                "name": sales_person,
-                "clientCount": len(clients),
-                "totalClientValue": total_client_value,
-                "clients": client_list
-            })
-
-        logger.info("Clients data processed successfully")
-        return jsonify(clients_data)
-    except Exception as e:
-        logger.error(f"Error processing clients data: {str(e)}")
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'An error occurred while processing clients data'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
