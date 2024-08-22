@@ -35,6 +35,33 @@ forecasts = generate_forecasts(daily_income, product_info, daily_holdings, trade
 sales_person_breakdowns = generate_sales_person_breakdowns(daily_income, client_sales)
 client_breakdowns = generate_client_breakdowns(daily_income)
 
+@app.route('/api/dashboard')
+def get_dashboard():
+    try:
+        logger.info("Processing dashboard data")
+        total_income = sum(sum(client.values()) for client in daily_income[max(daily_income.keys())].values())
+        total_clients = len(set(client for day in daily_income.values() for client in day.keys()))
+        total_funds = len(set(fund for day in daily_income.values() for client in day.values() for fund in client.keys()))
+        total_sales = len(set(sales_income[max(sales_income.keys())].keys()))
+
+        income_trend = [{'date': date.isoformat(), 'income': sum(sum(client.values()) for client in clients.values())}
+                        for date, clients in daily_income.items()]
+
+        dashboard_data = {
+            'total_income': total_income,
+            'total_clients': total_clients,
+            'total_funds': total_funds,
+            'total_sales': total_sales,
+            'income_trend': income_trend
+        }
+
+        logger.info("Dashboard data processed successfully")
+        return jsonify(dashboard_data)
+    except Exception as e:
+        logger.error(f"Error processing dashboard data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'An error occurred while processing dashboard data'}), 500
+
 @app.route('/api/sales')
 def get_sales():
     try:
