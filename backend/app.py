@@ -3,6 +3,9 @@ from flask_cors import CORS
 import kpi_master_v1_07 as kpi
 import datetime
 import logging
+import os
+
+from backend import kpi_master_v1_07
 
 app = Flask(__name__)
 CORS(app)
@@ -23,10 +26,10 @@ def sales():
     start_date = datetime.date(2023, 12, 31)
     end_date = datetime.date(2024, 6, 30)
 
-    initial_holdings = kpi.load_initial_holdings('api/data/2023DEC.csv')
-    trades = kpi.load_trades('api/data/TRADES_LOG.csv')
-    product_info = kpi.load_product_info('api/data/PRODUCT_INFO.csv')
-    client_sales = kpi.load_client_sales('api/data/CLIENT_LIST.csv')
+    initial_holdings = kpi.load_initial_holdings('data/2023DEC.csv')
+    trades = kpi.load_trades('data/TRADES_LOG.csv')
+    product_info = kpi.load_product_info('data/PRODUCT_INFO.csv')
+    client_sales = kpi.load_client_sales('data/CLIENT_LIST.csv')
 
     daily_holdings = kpi.calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
     daily_income, sales_income, client_income = kpi.calculate_daily_income(daily_holdings, product_info, client_sales)
@@ -41,6 +44,7 @@ def sales():
         'client_income': client_income_serializable
     })
 
+
 @app.route('/api/clients')
 def clients():
     return jsonify(kpi_master_v1_07.clients_data)
@@ -54,4 +58,5 @@ def forecast():
     return jsonify(kpi_master_v1_07.forecast_data)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

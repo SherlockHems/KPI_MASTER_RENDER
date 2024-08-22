@@ -657,16 +657,16 @@ def main():
     end_date = datetime.date(2024, 6, 30)
 
     print("Loading initial holdings...")
-    initial_holdings = load_initial_holdings('api/data/2023DEC.csv')
+    initial_holdings = load_initial_holdings('data/2023DEC.csv')
 
     print("\nLoading trades...")
-    trades = load_trades('api/data/TRADES_LOG.csv')
+    trades = load_trades('data/TRADES_LOG.csv')
 
     print("\nLoading product info...")
-    product_info = load_product_info('api/data/PRODUCT_INFO.csv')
+    product_info = load_product_info('data/PRODUCT_INFO.csv')
 
     print("\nLoading client sales info...")
-    client_sales = load_client_sales('api/data/CLIENT_LIST.csv')
+    client_sales = load_client_sales('data/CLIENT_LIST.csv')
 
     print("\nCalculating daily holdings...")
     daily_holdings = calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
