@@ -36,7 +36,34 @@ const Clients = ({ searchTerm }) => {
     salesPerson.clients.some(client => client.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const columns = [
+  const allClientsData = clientsData.flatMap(salesPerson =>
+    salesPerson.clients.map(client => ({
+      ...client,
+      salesPerson: salesPerson.name
+    }))
+  ).sort((a, b) => b.value - a.value);
+
+  const summaryColumns = [
+    {
+      title: 'Client Name',
+      dataIndex: 'name',
+      key: 'name',
+    },
+    {
+      title: 'Cumulative Income Contribution',
+      dataIndex: 'value',
+      key: 'value',
+      render: (value) => `¥${value.toLocaleString()}`,
+      sorter: (a, b) => a.value - b.value,
+    },
+    {
+      title: 'Sales Person',
+      dataIndex: 'salesPerson',
+      key: 'salesPerson',
+    },
+  ];
+
+  const detailColumns = [
     {
       title: 'Client Name',
       dataIndex: 'name',
@@ -55,7 +82,15 @@ const Clients = ({ searchTerm }) => {
 
   return (
     <div>
-      <h1>Clients Coverage</h1>
+      <h1>Clients Coverage Summary</h1>
+      <Table
+        dataSource={allClientsData}
+        columns={summaryColumns}
+        pagination={{ pageSize: 10 }}
+        scroll={{ y: 400 }}
+      />
+
+      <h1>Clients Coverage by Sales Person</h1>
       {filteredData.length === 0 ? (
         <div>No matching clients found.</div>
       ) : (
@@ -65,7 +100,7 @@ const Clients = ({ searchTerm }) => {
               <Col span={12}>
                 <Table
                   dataSource={salesPerson.clients}
-                  columns={columns}
+                  columns={detailColumns}
                   pagination={{ pageSize: 5 }}
                   scroll={{ y: 240 }}
                 />
