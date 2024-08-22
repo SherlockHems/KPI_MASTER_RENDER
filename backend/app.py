@@ -108,54 +108,43 @@ def check_data_integrity():
 
 def load_and_process_data():
     if kpi_import_error:
+        logger.error(f"KPI import error: {kpi_import_error}")
         return {"error": f"Failed to import necessary functions: {kpi_import_error}"}
 
     start_date = datetime.date(2023, 12, 31)
     end_date = datetime.date(2024, 6, 30)
 
     try:
-        check_file_exists('data/2023DEC.csv')
-        check_file_exists('data/TRADES_LOG.csv')
-        check_file_exists('data/PRODUCT_INFO.csv')
-        check_file_exists('data/CLIENT_LIST.csv')
+        logger.info("Starting data loading and processing")
 
         initial_holdings = load_initial_holdings('data/2023DEC.csv')
+        logger.info(f"Initial holdings loaded: {len(initial_holdings)} clients")
+
         trades = load_trades('data/TRADES_LOG.csv')
+        logger.info(f"Trades loaded: {len(trades)} clients")
+
         product_info = load_product_info('data/PRODUCT_INFO.csv')
+        logger.info(f"Product info loaded: {len(product_info)} products")
+
         client_sales = load_client_sales('data/CLIENT_LIST.csv')
+        logger.info(f"Client sales info loaded: {len(client_sales)} clients")
 
         daily_holdings = calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
+        logger.info(f"Daily holdings calculated: {len(daily_holdings)} clients")
+
         daily_income, sales_income, client_income = calculate_daily_income(daily_holdings, product_info, client_sales)
+        logger.info(f"Daily income calculated: {len(daily_income)} days")
 
         if not sales_income:
             logger.error("sales_income is empty")
             return {"error": "No sales data available"}
 
-        cumulative_sales_income = calculate_cumulative_income(sales_income)
-        cumulative_client_income = calculate_cumulative_income(client_income)
-
-        client_stats, fund_stats, sales_stats = show_income_statistics(daily_income, sales_income, client_income,
-                                                                       daily_holdings, product_info)
-
-        forecasts = generate_forecasts(daily_income, product_info, daily_holdings, trades, end_date)
-
-        sales_person_breakdowns = generate_sales_person_breakdowns(daily_income, client_sales)
-        client_breakdowns = generate_client_breakdowns(daily_income)
-
+        logger.info("Data loading and processing completed successfully")
         return {
             'daily_income': daily_income,
             'sales_income': sales_income,
             'client_income': client_income,
             'client_sales': client_sales,
-            'cumulative_sales_income': cumulative_sales_income,
-            'cumulative_client_income': cumulative_client_income,
-            'client_stats': client_stats,
-            'fund_stats': fund_stats,
-            'sales_stats': sales_stats,
-            'forecasts': forecasts,
-            'daily_holdings': daily_holdings,
-            'sales_person_breakdowns': sales_person_breakdowns,
-            'client_breakdowns': client_breakdowns
         }
     except Exception as e:
         logger.error(f"Error in load_and_process_data: {e}")
@@ -237,10 +226,19 @@ def sales():
             logger.error("No sales data available")
             return jsonify({"error": "No sales data available"}), 404
 
-        logger.debug(f"sales_income keys: {data['sales_income'].keys()}")
-        logger.debug(f"First day of sales_income: {next(iter(data['sales_income'].values()))}")
+        # Convert datetime.date keys to string
+        sales_income_serializable = {
+            date.isoformat(): {
+                salesperson: income
+                for salesperson, income in daily_income.items()
+            }
+            for date, daily_income in data['sales_income'].items()
+        }
 
-        return jsonify({"sales_income": data['sales_income']})
+        logger.debug(f"sales_income keys: {sales_income_serializable.keys()}")
+        logger.debug(f"First day of sales_income: {next(iter(sales_income_serializable.values()))}")
+
+        return jsonify({"sales_income": sales_income_serializable})
     except Exception as e:
         logger.error(f"Error in sales route: {str(e)}")
         logger.error(traceback.format_exc())

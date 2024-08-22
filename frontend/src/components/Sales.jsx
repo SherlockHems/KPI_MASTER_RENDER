@@ -22,7 +22,7 @@ function Sales() {
         throw new Error(response.data.error);
       }
 
-      const processedData = processData(response.data);
+      const processedData = processData(response.data.sales_income);
       setSalesData(processedData);
     } catch (e) {
       console.error("Error fetching sales data:", e);
@@ -35,16 +35,16 @@ function Sales() {
   const processData = (rawData) => {
     console.log("Raw data received:", rawData);
 
-    if (!rawData || !rawData.sales_income || Object.keys(rawData.sales_income).length === 0) {
+    if (!rawData || Object.keys(rawData).length === 0) {
       console.error("Invalid or empty sales data received");
       return [];
     }
 
-    const salesPersons = Object.keys(rawData.sales_income[Object.keys(rawData.sales_income)[0]] || {});
+    const salesPersons = Object.keys(Object.values(rawData)[0] || {});
 
     return salesPersons.map(person => ({
       name: person,
-      income: Object.values(rawData.sales_income).reduce((sum, day) => sum + (day[person] || 0), 0)
+      income: Object.values(rawData).reduce((sum, day) => sum + (day[person] || 0), 0)
     }));
   };
 
