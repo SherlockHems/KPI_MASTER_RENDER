@@ -217,8 +217,6 @@ def dashboard():
         return jsonify({"error": f"An error occurred while processing dashboard data: {str(e)}"}), 500
 
 
-# In app.py, update the /api/sales route
-
 @app.route('/api/sales')
 def sales():
     try:
@@ -228,75 +226,19 @@ def sales():
             logger.error("No sales data available")
             return jsonify({"error": "No sales data available"}), 404
 
-        # Calculate total clients for each sales person
-        sales_person_clients = {}
-        for client, sales_person in data['client_sales'].items():
-            if sales_person not in sales_person_clients:
-                sales_person_clients[sales_person] = set()
-            sales_person_clients[sales_person].add(client)
-
-        # Prepare the sales data including client and fund breakdowns
-        sales_data = {
-            'salesPersons': [],
-            'dailyContribution': [],
-            'individualPerformance': {}
+        # Convert datetime.date keys to string
+        sales_income_serializable = {
+            date.isoformat(): {
+                salesperson: income
+                for salesperson, income in daily_income.items()
+            }
+            for date, daily_income in data['sales_income'].items()
         }
 
-        for date, daily_income in data['sales_income'].items():
-            daily_data = {'date': date.isoformat()}
-            for sales_person, income in daily_income.items():
-                daily_data[sales_person] = income
+        logger.debug(f"sales_income keys: {sales_income_serializable.keys()}")
+        logger.debug(f"First day of sales_income: {next(iter(sales_income_serializable.values()))}")
 
-                if sales_person not in sales_data['individualPerformance']:
-                    sales_data['individualPerformance'][sales_person] = {
-                        'dailyIncome': [],
-                        'clientBreakdown': {},
-                        'fundBreakdown': {}
-                    }
-
-                sales_data['individualPerformance'][sales_person]['dailyIncome'].append({
-                    'date': date.isoformat(),
-                    'income': income
-                })
-
-                # Calculate client and fund breakdowns
-                for client, client_income in data['client_income'][date].items():
-                    if data['client_sales'].get(client) == sales_person:
-                        sales_data['individualPerformance'][sales_person]['clientBreakdown'][client] = \
-                        sales_data['individualPerformance'][sales_person]['clientBreakdown'].get(client,
-                                                                                                 0) + client_income
-
-                        for fund, fund_income in data['daily_income'][date][client].items():
-                            sales_data['individualPerformance'][sales_person]['fundBreakdown'][fund] = \
-                            sales_data['individualPerformance'][sales_person]['fundBreakdown'].get(fund,
-                                                                                                   0) + fund_income
-
-            sales_data['dailyContribution'].append(daily_data)
-
-        # Calculate total income and prepare sales person data
-        for sales_person, daily_incomes in sales_data['individualPerformance'].items():
-            total_income = sum(day['income'] for day in daily_incomes['dailyIncome'])
-            sales_data['salesPersons'].append({
-                'name': sales_person,
-                'totalIncome': total_income,
-                'totalClients': len(sales_person_clients.get(sales_person, set()))
-            })
-
-        # Sort client and fund breakdowns and get top 10
-        for sales_person in sales_data['individualPerformance']:
-            sales_data['individualPerformance'][sales_person]['topClients'] = sorted(
-                sales_data['individualPerformance'][sales_person]['clientBreakdown'].items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:10]
-
-            sales_data['individualPerformance'][sales_person]['topFunds'] = sorted(
-                sales_data['individualPerformance'][sales_person]['fundBreakdown'].items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:10]
-
-        return jsonify(sales_data)
+        return jsonify({"sales_income": sales_income_serializable})
     except Exception as e:
         logger.error(f"Error in sales route: {str(e)}")
         logger.error(traceback.format_exc())
