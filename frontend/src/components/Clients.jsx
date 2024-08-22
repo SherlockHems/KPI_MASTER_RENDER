@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Card, Row, Col, Spin } from 'antd';
+import { Table, Card, Row, Col, Spin, message } from 'antd';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
 const Clients = ({ searchTerm }) => {
   const [clientsData, setClientsData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchClientsData();
@@ -16,7 +16,7 @@ const Clients = ({ searchTerm }) => {
   const fetchClientsData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/clients');
+      const response = await fetch(`${API_URL}/api/clients`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -25,7 +25,7 @@ const Clients = ({ searchTerm }) => {
       setClientsData(data);
     } catch (error) {
       console.error('Error fetching clients data:', error);
-      setError(error.message);
+      message.error('Failed to fetch clients data. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -51,7 +51,6 @@ const Clients = ({ searchTerm }) => {
   ];
 
   if (loading) return <Spin size="large" />;
-  if (error) return <div>Error: {error}</div>;
   if (clientsData.length === 0) return <div>No client data available.</div>;
 
   return (

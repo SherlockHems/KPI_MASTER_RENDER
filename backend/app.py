@@ -12,7 +12,7 @@ from kpi_master_v1_07 import (
 )
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -120,7 +120,7 @@ def get_sales():
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing sales data'}), 500
 
-@app.route('/api/clients')
+@app.route('/api/clients', methods=['GET'])
 def get_clients():
     try:
         logger.info("Processing clients data")
