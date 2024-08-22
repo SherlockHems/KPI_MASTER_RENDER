@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, Row, Col, Spin, Alert, Select, Table, Radio } from 'antd';
+import axios from 'axios';
 
 const { Option } = Select;
 
-function Sales() {
+function Sales({ searchTerm }) {
   const [salesData, setSalesData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,18 +19,44 @@ function Sales() {
   const fetchSalesData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/sales`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setSalesData(data);
-      setSelectedSalesPerson(data.salesPersons[0]?.name);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/sales`);
+      setSalesData(processData(response.data));
+      setSelectedSalesPerson(Object.keys(response.data.sales_income[Object.keys(response.data.sales_income)[0]])[0]);
     } catch (e) {
       setError(`Failed to fetch sales data: ${e.message}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const processData = (rawData) => {
+    const salesPersons = Object.keys(rawData.sales_income[Object.keys(rawData.sales_income)[0]]);
+    const dailyContribution = Object.entries(rawData.sales_income).map(([date, incomes]) => ({
+      date,
+      ...incomes
+    }));
+
+    const cumulativeIncome = salesPersons.reduce((acc, person) => {
+      acc[person] = Object.values(rawData.sales_income).reduce((sum, day) => sum + (day[person] || 0), 0);
+      return acc;
+    }, {});
+
+    const individualPerformance = salesPersons.reduce((acc, person) => {
+      acc[person] = Object.entries(rawData.sales_income).map(([date, incomes]) => ({
+        date,
+        income: incomes[person] || 0
+      }));
+      return acc;
+    }, {});
+
+    return {
+      salesPersons: salesPersons.map(person => ({
+        name: person,
+        cumulativeIncome: cumulativeIncome[person]
+      })),
+      dailyContribution,
+      individualPerformance
+    };
   };
 
   if (loading) return <Spin size="large" />;
@@ -41,35 +68,23 @@ function Sales() {
   };
 
   const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
-  const lineStyles = ['solid', 'dashed', 'dotted', 'dashdot'];
 
   const salesPersonColumns = [
     {
       title: 'Sales Person',
       dataIndex: 'name',
-      key: 'name'
-    },
-    {
-      title: 'Number of Clients',
-      dataIndex: 'clientCount',
-      key: 'clientCount',
-      sorter: (a, b) => a.clientCount - b.clientCount,
+      key: 'name',
+      filteredValue: [searchTerm],
+      onFilter: (value, record) => record.name.toLowerCase().includes(value.toLowerCase()),
     },
     {
       title: 'Total Income',
-      dataIndex: 'totalIncome',
-      key: 'totalIncome',
+      dataIndex: 'cumulativeIncome',
+      key: 'cumulativeIncome',
       render: (text) => formatCurrency(text),
-      sorter: (a, b) => a.totalIncome - b.totalIncome,
+      sorter: (a, b) => a.cumulativeIncome - b.cumulativeIncome,
     }
   ];
-
-  const salesPersonData = salesData.salesPersons.map(person => ({
-    key: person.name,
-    name: person.name,
-    clientCount: person.topClients.length,
-    totalIncome: person.cumulativeIncome
-  }));
 
   const cumulativeData = salesData.dailyContribution.reduce((acc, day) => {
     const prevDay = acc[acc.length - 1] || {};
@@ -81,45 +96,10 @@ function Sales() {
     return acc;
   }, []);
 
-  const prepareIndividualData = (data, key) => {
-    const cumulativeTotals = data.reduce((acc, day) => {
-      Object.entries(day[key]).forEach(([name, value]) => {
-        acc[name] = (acc[name] || 0) + value;
-      });
-      return acc;
-    }, {});
-
-    const top10 = Object.entries(cumulativeTotals)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name]) => name);
-
-    return data.map(day => {
-      const newDay = { date: day.date };
-      top10.forEach(name => {
-        newDay[name] = day[key][name] || 0;
-      });
-      return newDay;
-    });
-  };
-
-  const dailyIncomeData = salesData.dailyContribution.map(day => ({
-    key: day.date,
-    date: new Date(day.date).toLocaleDateString(),
-    ...Object.fromEntries(salesData.salesPersons.map(person => [person.name, formatCurrency(day[person.name] || 0)]))
-  }));
-
-  const dailyIncomeColumns = [
-    { title: 'Date', dataIndex: 'date', key: 'date' },
-    ...salesData.salesPersons.map(person => ({
-      title: person.name,
-      dataIndex: person.name,
-      key: person.name,
-    }))
-  ];
-
   return (
     <div>
+      <h1>Sales Dashboard</h1>
+
       <Row gutter={16}>
         <Col span={12}>
           <Card title="Cumulative Income Contribution by Sales Person">
@@ -137,7 +117,7 @@ function Sales() {
         <Col span={12}>
           <Card title="Sales Person Performance">
             <Table
-              dataSource={salesPersonData}
+              dataSource={salesData.salesPersons}
               columns={salesPersonColumns}
               pagination={false}
             />
@@ -192,77 +172,21 @@ function Sales() {
             <Option key={person.name} value={person.name}>{person.name}</Option>
           ))}
         </Select>
-        <Row gutter={16}>
-          <Col span={12}>
-            <h3>Breakdown by Top 10 Clients</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'clients')}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                />
-                <YAxis tickFormatter={formatCurrency} />
-                <Tooltip
-                  formatter={(value) => formatCurrency(value)}
-                  labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                />
-                <Legend />
-                {Object.keys(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'clients')[0])
-                  .filter(key => key !== 'date')
-                  .map((client, index) => (
-                    <Area
-                      key={client}
-                      type="monotone"
-                      dataKey={client}
-                      stackId="1"
-                      stroke={colors[index % colors.length]}
-                      fill={colors[index % colors.length]}
-                    />
-                  ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </Col>
-          <Col span={12}>
-            <h3>Breakdown by Top 10 Funds</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'funds')}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                />
-                <YAxis tickFormatter={formatCurrency} />
-                <Tooltip
-                  formatter={(value) => formatCurrency(value)}
-                  labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                />
-                <Legend />
-                {Object.keys(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'funds')[0])
-                  .filter(key => key !== 'date')
-                  .map((fund, index) => (
-                    <Area
-                      key={fund}
-                      type="monotone"
-                      dataKey={fund}
-                      stackId="1"
-                      stroke={colors[index % colors.length]}
-                      fill={colors[index % colors.length]}
-                    />
-                  ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </Col>
-        </Row>
-      </Card>
-
-      <Card title="Daily Income Data" style={{ marginTop: 16 }}>
-        <Table
-          dataSource={dailyIncomeData}
-          columns={dailyIncomeColumns}
-          scroll={{ x: 'max-content' }}
-          pagination={{ pageSize: 10 }}
-        />
+        <ResponsiveContainer width="100%" height={400}>
+          <LineChart data={salesData.individualPerformance[selectedSalesPerson]}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="date"
+              tickFormatter={(value) => new Date(value).toLocaleDateString()}
+            />
+            <YAxis tickFormatter={formatCurrency} />
+            <Tooltip
+              formatter={(value) => formatCurrency(value)}
+              labelFormatter={(label) => new Date(label).toLocaleDateString()}
+            />
+            <Line type="monotone" dataKey="income" stroke="#8884d8" />
+          </LineChart>
+        </ResponsiveContainer>
       </Card>
     </div>
   );
