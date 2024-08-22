@@ -80,7 +80,7 @@ def prepare_sales_data(daily_income, client_sales):
 
         logger.info("Sales data prepared successfully")
         return sales_data
-    
+
     except Exception as e:
         logger.error(f"Error preparing sales data: {str(e)}")
         logger.error(traceback.format_exc())
@@ -232,20 +232,15 @@ def dashboard():
 def sales():
     try:
         logger.info("Sales route accessed")
-        if not check_data_integrity():
-            return jsonify({"error": "Data integrity check failed"}), 500
 
-        logger.debug(f"sales_data: {json.dumps(sales_data, default=str)}")
-        logger.debug(f"sales_data type: {type(sales_data)}")
-        logger.debug(f"sales_data keys: {sales_data.keys() if isinstance(sales_data, dict) else 'Not a dict'}")
-
-        if not sales_data or (isinstance(sales_data, dict) and 'sales_income' not in sales_data):
-            logger.error("Sales data is empty or missing 'sales_income'")
+        if not data or 'sales_income' not in data:
+            logger.error("No sales data available")
             return jsonify({"error": "No sales data available"}), 404
 
-        result = jsonify(sales_data)
-        logger.info("Sales data successfully jsonified")
-        return result
+        logger.debug(f"sales_income keys: {data['sales_income'].keys()}")
+        logger.debug(f"First day of sales_income: {next(iter(data['sales_income'].values()))}")
+
+        return jsonify({"sales_income": data['sales_income']})
     except Exception as e:
         logger.error(f"Error in sales route: {str(e)}")
         logger.error(traceback.format_exc())
