@@ -5,15 +5,14 @@ import datetime
 import pandas as pd
 import os
 import pprint
+import json
+import traceback
 
-# Add this near the top of your file, after the other imports
 logging.basicConfig(level=logging.DEBUG)
-
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
-
-logging.basicConfig(level=logging.DEBUG)
 
 # Import functions from kpi_master_v1_07
 try:
@@ -34,53 +33,73 @@ try:
     kpi_import_error = None
 except ImportError as e:
     kpi_import_error = str(e)
-    logging.error(f"Error importing from kpi_master_v1_07: {e}")
+    logger.error(f"Error importing from kpi_master_v1_07: {e}")
 
 
 def prepare_sales_data(daily_income, client_sales):
-    sales_person_income = {}
-    for date, clients in daily_income.items():
-        for client, funds in clients.items():
-            sales_person = client_sales.get(client, "Unknown")
-            if sales_person not in sales_person_income:
-                sales_person_income[sales_person] = {}
-            if date not in sales_person_income[sales_person]:
-                sales_person_income[sales_person][date] = 0
-            sales_person_income[sales_person][date] += sum(funds.values())
+    logger.info("Preparing sales data")
+    try:
+        sales_person_income = {}
+        for date, clients in daily_income.items():
+            for client, funds in clients.items():
+                sales_person = client_sales.get(client, "Unknown")
+                if sales_person not in sales_person_income:
+                    sales_person_income[sales_person] = {}
+                if date not in sales_person_income[sales_person]:
+                    sales_person_income[sales_person][date] = 0
+                sales_person_income[sales_person][date] += sum(funds.values())
 
-    sales_data = {
-        'salesPersons': [],
-        'dailyContribution': [],
-        'individualPerformance': {}
-    }
+        sales_data = {
+            'salesPersons': [],
+            'dailyContribution': [],
+            'individualPerformance': {}
+        }
 
-    all_dates = sorted(set(date for sp_data in sales_person_income.values() for date in sp_data.keys()))
+        all_dates = sorted(set(date for sp_data in sales_person_income.values() for date in sp_data.keys()))
 
-    for date in all_dates:
-        daily_data = {'date': date.isoformat()}
+        for date in all_dates:
+            daily_data = {'date': date.isoformat()}
+            for sales_person, income_data in sales_person_income.items():
+                daily_data[sales_person] = income_data.get(date, 0)
+            sales_data['dailyContribution'].append(daily_data)
+
         for sales_person, income_data in sales_person_income.items():
-            daily_data[sales_person] = income_data.get(date, 0)
-        sales_data['dailyContribution'].append(daily_data)
+            cumulative_income = sum(income_data.values())
+            sales_data['individualPerformance'][sales_person] = [
+                {'date': date.isoformat(), 'income': income}
+                for date, income in sorted(income_data.items())
+            ]
 
-    for sales_person, income_data in sales_person_income.items():
-        cumulative_income = sum(income_data.values())
-        sales_data['individualPerformance'][sales_person] = [
-            {'date': date.isoformat(), 'income': income}
-            for date, income in sorted(income_data.items())
-        ]
+            sales_data['salesPersons'].append({
+                'name': sales_person,
+                'cumulativeIncome': cumulative_income
+            })
 
-        sales_data['salesPersons'].append({
-            'name': sales_person,
-            'cumulativeIncome': cumulative_income
-        })
+        logger.info("Sales data prepared successfully")
+        return sales_data
+    except Exception as e:
+        logger.error(f"Error preparing sales data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return {"error": "Failed to prepare sales data"}
 
-    return sales_data
 
 def check_file_exists(filepath):
     if os.path.exists(filepath):
-        logging.info(f"File exists: {filepath}")
+        logger.info(f"File exists: {filepath}")
     else:
-        logging.error(f"File does not exist: {filepath}")
+        logger.error(f"File does not exist: {filepath}")
+
+
+def check_data_integrity():
+    logger.info("Checking data integrity")
+    if 'daily_income' not in data:
+        logger.error("daily_income is missing from data")
+        return False
+    if 'client_sales' not in data:
+        logger.error("client_sales is missing from data")
+        return False
+    logger.info("Data integrity check passed")
+    return True
 
 
 def load_and_process_data():
@@ -91,8 +110,6 @@ def load_and_process_data():
     end_date = datetime.date(2024, 6, 30)
 
     try:
-
-        # Check if files exist
         check_file_exists('data/2023DEC.csv')
         check_file_exists('data/TRADES_LOG.csv')
         check_file_exists('data/PRODUCT_INFO.csv')
@@ -133,7 +150,8 @@ def load_and_process_data():
             'client_breakdowns': client_breakdowns
         }
     except Exception as e:
-        logging.error(f"Error in load_and_process_data: {e}")
+        logger.error(f"Error in load_and_process_data: {e}")
+        logger.error(traceback.format_exc())
         return {"error": str(e)}
 
 
@@ -149,7 +167,7 @@ else:
 
 @app.route('/')
 def home():
-    app.logger.info("Home route accessed")
+    logger.info("Home route accessed")
     return "Welcome to the KPI Master API"
 
 
@@ -159,13 +177,6 @@ def debug():
         'daily_income_structure': str(type(data['daily_income'])),
         'daily_income_sample': str(dict(list(data['daily_income'].items())[:1])),
         'client_sales_structure': str(type(data['client_sales'])),
-        'client_sales_sample': str(dict(list(data['client_sales'].items())[:5]))
-    })
-
-@app.route('/api/debug')
-def debug_data():
-    return jsonify({
-        'daily_income_sample': str(dict(list(data['daily_income'].items())[:1])),
         'client_sales_sample': str(dict(list(data['client_sales'].items())[:5]))
     })
 
@@ -183,7 +194,7 @@ def dashboard():
                     if isinstance(income, (int, float)):
                         total_income += income
                     else:
-                        app.logger.warning(
+                        logger.warning(
                             f"Non-numeric income value: {income} for date {date}, client {client}, fund {fund}")
 
         total_clients = len(set(client for day in data['daily_income'].values() for client in day.keys()))
@@ -204,13 +215,29 @@ def dashboard():
             'income_trend': income_trend
         })
     except Exception as e:
-        app.logger.error(f"Error in dashboard route: {str(e)}")
+        logger.error(f"Error in dashboard route: {str(e)}")
+        logger.error(traceback.format_exc())
         return jsonify({"error": f"An error occurred while processing dashboard data: {str(e)}"}), 500
+
 
 @app.route('/api/sales')
 def sales():
-    app.logger.info(f"Sales data structure: {json.dumps(sales_data, default=str)}")
-    return jsonify(sales_data)
+    try:
+        logger.info("Sales route accessed")
+        if not check_data_integrity():
+            return jsonify({"error": "Data integrity check failed"}), 500
+
+        logger.debug(f"sales_data: {json.dumps(sales_data, default=str)}")
+
+        result = jsonify(sales_data)
+        logger.info("Sales data successfully jsonified")
+        return result
+    except Exception as e:
+        logger.error(f"Error in sales route: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/clients')
 def clients():
     if 'error' in data:
@@ -248,6 +275,13 @@ def forecast():
     if 'error' in data:
         return jsonify({"error": data['error']})
     return jsonify(data['forecasts'])
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    logger.error(f"Unhandled exception: {str(e)}")
+    logger.error(traceback.format_exc())
+    return jsonify({"error": "An unexpected error occurred"}), 500
 
 
 if __name__ == '__main__':

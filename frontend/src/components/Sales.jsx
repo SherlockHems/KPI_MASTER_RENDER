@@ -21,6 +21,9 @@ function Sales({ searchTerm }) {
       setLoading(true);
       const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/sales`);
       console.log("Sales API response:", response.data);
+      if (response.data.error) {
+        throw new Error(response.data.error);
+      }
       const processedData = processData(response.data);
       setSalesData(processedData);
       if (processedData.salesPersons.length > 0) {
@@ -28,14 +31,20 @@ function Sales({ searchTerm }) {
       }
     } catch (e) {
       console.error("Error fetching sales data:", e);
-      setError(`Failed to fetch sales data: ${e.message}`);
+      if (e.response) {
+        setError(`Server error: ${e.response.status} ${e.response.statusText}`);
+      } else if (e.request) {
+        setError("No response received from server. Please check your network connection.");
+      } else {
+        setError(`Error: ${e.message}`);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const processData = (rawData) => {
-    console.log("Raw data received:", rawData);  // Add this line for debugging
+    console.log("Raw data received:", rawData);
 
     if (!rawData || !rawData.sales_income || Object.keys(rawData.sales_income).length === 0) {
       console.error("Invalid or empty sales data received");
