@@ -209,6 +209,7 @@ def dashboard():
 
 @app.route('/api/sales')
 def sales():
+    app.logger.info(f"Sales data: {sales_data}")
     return jsonify(sales_data)
 
 @app.route('/api/clients')

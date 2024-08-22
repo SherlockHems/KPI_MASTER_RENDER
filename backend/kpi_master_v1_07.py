@@ -770,6 +770,10 @@ def prepare_sales_data(daily_income, client_sales):
             'topClients': [{'name': name, 'income': income} for name, income in top_clients.get(sales_person, [])],
             'topFunds': [{'name': name, 'income': income} for name, income in top_funds.get(sales_person, [])]
         })
+        
+    print("Preparing sales data...")
+    print(f"daily_income sample: {list(daily_income.items())[:1]}")
+    print(f"client_sales sample: {list(client_sales.items())[:5]}")
 
     return sales_data
 

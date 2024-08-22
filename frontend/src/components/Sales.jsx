@@ -20,9 +20,11 @@ function Sales({ searchTerm }) {
     try {
       setLoading(true);
       const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/sales`);
+      console.log("Sales API response:", response.data);
       setSalesData(processData(response.data));
       setSelectedSalesPerson(Object.keys(response.data.sales_income[Object.keys(response.data.sales_income)[0]])[0]);
     } catch (e) {
+      console.error("Error fetching sales data:", e);
       setError(`Failed to fetch sales data: ${e.message}`);
     } finally {
       setLoading(false);
