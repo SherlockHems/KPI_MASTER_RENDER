@@ -209,9 +209,8 @@ def dashboard():
 
 @app.route('/api/sales')
 def sales():
-    app.logger.info(f"Sales data: {sales_data}")
+    app.logger.info(f"Sales data structure: {json.dumps(sales_data, default=str)}")
     return jsonify(sales_data)
-
 @app.route('/api/clients')
 def clients():
     if 'error' in data:

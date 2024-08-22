@@ -21,8 +21,11 @@ function Sales({ searchTerm }) {
       setLoading(true);
       const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/sales`);
       console.log("Sales API response:", response.data);
-      setSalesData(processData(response.data));
-      setSelectedSalesPerson(Object.keys(response.data.sales_income[Object.keys(response.data.sales_income)[0]])[0]);
+      const processedData = processData(response.data);
+      setSalesData(processedData);
+      if (processedData.salesPersons.length > 0) {
+        setSelectedSalesPerson(processedData.salesPersons[0].name);
+      }
     } catch (e) {
       console.error("Error fetching sales data:", e);
       setError(`Failed to fetch sales data: ${e.message}`);
@@ -32,7 +35,18 @@ function Sales({ searchTerm }) {
   };
 
   const processData = (rawData) => {
-    const salesPersons = Object.keys(rawData.sales_income[Object.keys(rawData.sales_income)[0]]);
+    console.log("Raw data received:", rawData);  // Add this line for debugging
+
+    if (!rawData || !rawData.sales_income || Object.keys(rawData.sales_income).length === 0) {
+      console.error("Invalid or empty sales data received");
+      return {
+        salesPersons: [],
+        dailyContribution: [],
+        individualPerformance: {}
+      };
+    }
+
+    const salesPersons = Object.keys(rawData.sales_income[Object.keys(rawData.sales_income)[0]] || {});
     const dailyContribution = Object.entries(rawData.sales_income).map(([date, incomes]) => ({
       date,
       ...incomes
@@ -63,7 +77,7 @@ function Sales({ searchTerm }) {
 
   if (loading) return <Spin size="large" />;
   if (error) return <Alert message="Error" description={error} type="error" showIcon />;
-  if (!salesData) return <Alert message="No sales data available" type="warning" showIcon />;
+  if (!salesData || salesData.salesPersons.length === 0) return <Alert message="No sales data available" type="warning" showIcon />;
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
