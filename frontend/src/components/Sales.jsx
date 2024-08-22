@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, Row, Col, Spin, Alert, Select, Table, Radio } from 'antd';
-import axios from 'axios';
 
 const { Option } = Select;
 
-function Sales({ searchTerm }) {
+function Sales() {
   const [salesData, setSalesData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,16 +18,15 @@ function Sales({ searchTerm }) {
   const fetchSalesData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/sales`);
-      if (response.data.error) {
-        throw new Error(response.data.error);
+      const response = await fetch('/api/sales');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      setSalesData(response.data);
-      if (response.data.salesPersons.length > 0) {
-        setSelectedSalesPerson(response.data.salesPersons[0].name);
-      }
+      const data = await response.json();
+      setSalesData(data);
+      setSelectedSalesPerson(data.salesPersons[0]?.name);
     } catch (e) {
-      setError(`Error: ${e.message}`);
+      setError(`Failed to fetch sales data: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -36,7 +34,7 @@ function Sales({ searchTerm }) {
 
   if (loading) return <Spin size="large" />;
   if (error) return <Alert message="Error" description={error} type="error" showIcon />;
-  if (!salesData || salesData.salesPersons.length === 0) return <Alert message="No sales data available" type="warning" showIcon />;
+  if (!salesData) return <Alert message="No sales data available" type="warning" showIcon />;
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
@@ -48,9 +46,13 @@ function Sales({ searchTerm }) {
     {
       title: 'Sales Person',
       dataIndex: 'name',
-      key: 'name',
-      filteredValue: [searchTerm],
-      onFilter: (value, record) => record.name.toLowerCase().includes(value.toLowerCase()),
+      key: 'name'
+    },
+    {
+      title: 'Number of Clients',
+      dataIndex: 'clientCount',
+      key: 'clientCount',
+      sorter: (a, b) => a.clientCount - b.clientCount,
     },
     {
       title: 'Total Income',
@@ -58,14 +60,15 @@ function Sales({ searchTerm }) {
       key: 'totalIncome',
       render: (text) => formatCurrency(text),
       sorter: (a, b) => a.totalIncome - b.totalIncome,
-    },
-    {
-      title: 'Total Clients',
-      dataIndex: 'totalClients',
-      key: 'totalClients',
-      sorter: (a, b) => a.totalClients - b.totalClients,
     }
   ];
+
+  const salesPersonData = salesData.salesPersons.map(person => ({
+    key: person.name,
+    name: person.name,
+    clientCount: person.topClients.length,
+    totalIncome: person.cumulativeIncome
+  }));
 
   const cumulativeData = salesData.dailyContribution.reduce((acc, day) => {
     const prevDay = acc[acc.length - 1] || {};
@@ -77,31 +80,45 @@ function Sales({ searchTerm }) {
     return acc;
   }, []);
 
-  const renderTooltipContent = (data) => {
-    if (!data.payload || data.payload.length === 0) return null;
-    const salesPerson = selectedSalesPerson;
-    const topClients = salesData.individualPerformance[salesPerson].topClients;
+  const prepareBreakdownData = (data, type) => {
+    const topItems = Object.entries(data[data.length - 1][type])
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([name]) => name);
 
-    return (
-      <div style={{ backgroundColor: 'white', padding: '10px', border: '1px solid #ccc' }}>
-        <p>{`Date: ${new Date(data.label).toLocaleDateString()}`}</p>
-        <p>{`Income: ${formatCurrency(data.payload[0].value)}`}</p>
-        <p>Top Clients:</p>
-        <ul>
-          {topClients.map((client, index) => (
-            <li key={index}>{`${client[0]}: ${formatCurrency(client[1])}`}</li>
-          ))}
-        </ul>
-      </div>
-    );
+    return data.map(day => {
+      const newDay = { date: day.date };
+      topItems.forEach(item => {
+        newDay[item] = day[type][item] || 0;
+      });
+      return newDay;
+    });
   };
+
+  const clientBreakdownData = prepareBreakdownData(salesData.individualPerformance[selectedSalesPerson], 'clients');
+  const fundBreakdownData = prepareBreakdownData(salesData.individualPerformance[selectedSalesPerson], 'funds');
+
+  const dailyIncomeData = salesData.dailyContribution.map(day => ({
+    key: day.date,
+    date: new Date(day.date).toLocaleDateString(),
+    ...Object.fromEntries(salesData.salesPersons.map(person => [person.name, formatCurrency(day[person.name] || 0)]))
+  }));
+
+  const dailyIncomeColumns = [
+    { title: 'Date', dataIndex: 'date', key: 'date' },
+    ...salesData.salesPersons.map(person => ({
+      title: person.name,
+      dataIndex: person.name,
+      key: person.name,
+    }))
+  ];
 
   return (
     <div>
       <h1>Sales Dashboard</h1>
 
       <Row gutter={16}>
-        <Col span={24}>
+        <Col span={12}>
           <Card title="Cumulative Income Contribution by Sales Person">
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={salesData.salesPersons}>
@@ -109,20 +126,21 @@ function Sales({ searchTerm }) {
                 <XAxis dataKey="name" />
                 <YAxis tickFormatter={formatCurrency} />
                 <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="totalIncome" fill="#8884d8" />
+                <Bar dataKey="cumulativeIncome" fill="#8884d8" />
               </BarChart>
             </ResponsiveContainer>
           </Card>
         </Col>
+        <Col span={12}>
+          <Card title="Sales Person Performance">
+            <Table
+              dataSource={salesPersonData}
+              columns={salesPersonColumns}
+              pagination={false}
+            />
+          </Card>
+        </Col>
       </Row>
-
-      <Card title="Sales Person Performance" style={{ marginTop: 16 }}>
-        <Table
-          dataSource={salesData.salesPersons}
-          columns={salesPersonColumns}
-          pagination={false}
-        />
-      </Card>
 
       <Card title="All Sales Persons Income Contribution" style={{ marginTop: 16 }}>
         <Radio.Group
@@ -173,68 +191,75 @@ function Sales({ searchTerm }) {
         </Select>
         <Row gutter={16}>
           <Col span={12}>
-            <h3>Income Trend</h3>
+            <h3>Breakdown by Top 10 Clients</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={salesData.individualPerformance[selectedSalesPerson].dailyIncome}>
+              <AreaChart data={clientBreakdownData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
                   tickFormatter={(value) => new Date(value).toLocaleDateString()}
                 />
                 <YAxis tickFormatter={formatCurrency} />
-                <Tooltip content={renderTooltipContent} />
-                <Area type="monotone" dataKey="income" stroke="#8884d8" fill="#8884d8" />
+                <Tooltip
+                  formatter={(value) => formatCurrency(value)}
+                  labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                />
+                <Legend />
+                {Object.keys(clientBreakdownData[0])
+                  .filter(key => key !== 'date')
+                  .map((client, index) => (
+                    <Area
+                      key={client}
+                      type="monotone"
+                      dataKey={client}
+                      stackId="1"
+                      stroke={colors[index % colors.length]}
+                      fill={colors[index % colors.length]}
+                    />
+                  ))}
               </AreaChart>
             </ResponsiveContainer>
           </Col>
           <Col span={12}>
-            <h3>Client Breakdown</h3>
+            <h3>Breakdown by Top 10 Funds</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={salesData.individualPerformance[selectedSalesPerson].topClients}>
+              <AreaChart data={fundBreakdownData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="0" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                />
                 <YAxis tickFormatter={formatCurrency} />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="1" fill="#82ca9d" />
-              </BarChart>
+                <Tooltip
+                  formatter={(value) => formatCurrency(value)}
+                  labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                />
+                <Legend />
+                {Object.keys(fundBreakdownData[0])
+                  .filter(key => key !== 'date')
+                  .map((fund, index) => (
+                    <Area
+                      key={fund}
+                      type="monotone"
+                      dataKey={fund}
+                      stackId="1"
+                      stroke={colors[index % colors.length]}
+                      fill={colors[index % colors.length]}
+                    />
+                  ))}
+              </AreaChart>
             </ResponsiveContainer>
           </Col>
         </Row>
-        <Row gutter={16} style={{ marginTop: 16 }}>
-          <Col span={12}>
-            <h3>Fund Breakdown</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={salesData.individualPerformance[selectedSalesPerson].topFunds}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="0" />
-                <YAxis tickFormatter={formatCurrency} />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="1" fill="#ffc658" />
-              </BarChart>
-            </ResponsiveContainer>
-          </Col>
-          <Col span={12}>
-            <h3>Daily Income</h3>
-            <Table
-              dataSource={salesData.individualPerformance[selectedSalesPerson].dailyIncome}
-              columns={[
-                {
-                  title: 'Date',
-                  dataIndex: 'date',
-                  key: 'date',
-                  render: (text) => new Date(text).toLocaleDateString()
-                },
-                {
-                  title: 'Income',
-                  dataIndex: 'income',
-                  key: 'income',
-                  render: (text) => formatCurrency(text)
-                }
-              ]}
-              pagination={{ pageSize: 10 }}
-            />
-          </Col>
-        </Row>
+      </Card>
+
+      <Card title="Daily Income Data" style={{ marginTop: 16 }}>
+        <Table
+          dataSource={dailyIncomeData}
+          columns={dailyIncomeColumns}
+          scroll={{ x: 'max-content' }}
+          pagination={{ pageSize: 10 }}
+        />
       </Card>
     </div>
   );
