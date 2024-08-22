@@ -120,5 +120,37 @@ def get_sales():
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing sales data'}), 500
 
+@app.route('/api/clients')
+def get_clients():
+    try:
+        logger.info("Processing clients data")
+        clients_data = []
+
+        for sales_person, clients in client_sales.items():
+            client_list = []
+            total_client_value = 0
+
+            for client in clients:
+                client_value = sum(sum(daily_income[date].get(client, {}).values()) for date in daily_income)
+                client_list.append({
+                    "name": client,
+                    "value": client_value
+                })
+                total_client_value += client_value
+
+            clients_data.append({
+                "name": sales_person,
+                "clientCount": len(clients),
+                "totalClientValue": total_client_value,
+                "clients": client_list
+            })
+
+        logger.info("Clients data processed successfully")
+        return jsonify(clients_data)
+    except Exception as e:
+        logger.error(f"Error processing clients data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'An error occurred while processing clients data'}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)
