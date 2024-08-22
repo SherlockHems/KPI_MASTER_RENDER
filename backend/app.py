@@ -32,9 +32,44 @@ except ImportError as e:
 
 
 def prepare_sales_data(daily_income, client_sales):
+    sales_person_income = {}
+    for date, clients in daily_income.items():
+        for client, funds in clients.items():
+            sales_person = client_sales.get(client, "Unknown")
+            if sales_person not in sales_person_income:
+                sales_person_income[sales_person] = {}
+            if date not in sales_person_income[sales_person]:
+                sales_person_income[sales_person][date] = 0
+            sales_person_income[sales_person][date] += sum(funds.values())
 
+    sales_data = {
+        'salesPersons': [],
+        'dailyContribution': [],
+        'individualPerformance': {}
+    }
 
-# ... [keep the existing code for prepare_sales_data]
+    all_dates = sorted(set(date for sp_data in sales_person_income.values() for date in sp_data.keys()))
+
+    for date in all_dates:
+        daily_data = {'date': date.isoformat()}
+        for sales_person, income_data in sales_person_income.items():
+            daily_data[sales_person] = income_data.get(date, 0)
+        sales_data['dailyContribution'].append(daily_data)
+
+    for sales_person, income_data in sales_person_income.items():
+        cumulative_income = sum(income_data.values())
+        sales_data['individualPerformance'][sales_person] = [
+            {'date': date.isoformat(), 'income': income}
+            for date, income in sorted(income_data.items())
+        ]
+
+        sales_data['salesPersons'].append({
+            'name': sales_person,
+            'cumulativeIncome': cumulative_income
+        })
+
+    return sales_data
+
 
 def load_and_process_data():
     if kpi_import_error:
