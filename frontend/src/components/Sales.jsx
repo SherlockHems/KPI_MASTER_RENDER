@@ -26,9 +26,10 @@ function Sales({ searchTerm }) {
         throw new Error(response.data.error);
       }
 
-      setSalesData(response.data);
-      if (response.data.salesPersons.length > 0) {
-        setSelectedSalesPerson(response.data.salesPersons[0].name);
+      const processedData = processData(response.data.sales_income);
+      setSalesData(processedData);
+      if (processedData.salesPersons.length > 0) {
+        setSelectedSalesPerson(processedData.salesPersons[0].name);
       }
     } catch (e) {
       console.error("Error fetching sales data:", e);
@@ -38,32 +39,50 @@ function Sales({ searchTerm }) {
     }
   };
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
-  };
+  const processData = (rawData) => {
+    console.log("Raw data received:", rawData);
 
-  const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
+    if (!rawData || Object.keys(rawData).length === 0) {
+      console.error("Invalid or empty sales data received");
+      return { salesPersons: [], dailyContribution: [], individualPerformance: {} };
+    }
 
-  const prepareChartData = (data, key) => {
-    if (!data || data.length === 0) return [];
+    const salesPersons = Object.keys(Object.values(rawData)[0] || {});
 
-    const latestData = data[data.length - 1][key];
-    const sortedData = Object.entries(latestData)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
+    const salesPersonsData = salesPersons.map(person => ({
+      name: person,
+      cumulativeIncome: Object.values(rawData).reduce((sum, day) => sum + (day[person] || 0), 0)
+    }));
 
-    return data.map(day => {
-      const newDay = { date: day.date };
-      sortedData.forEach(([name]) => {
-        newDay[name] = day[key][name] || 0;
-      });
-      return newDay;
+    const dailyContribution = Object.entries(rawData).map(([date, incomes]) => ({
+      date,
+      ...incomes
+    }));
+
+    const individualPerformance = {};
+    salesPersons.forEach(person => {
+      individualPerformance[person] = Object.entries(rawData).map(([date, incomes]) => ({
+        date,
+        income: incomes[person] || 0
+      }));
     });
+
+    return {
+      salesPersons: salesPersonsData,
+      dailyContribution,
+      individualPerformance
+    };
   };
 
   if (loading) return <Spin size="large" />;
   if (error) return <Alert message="Error" description={error} type="error" showIcon />;
   if (!salesData || salesData.salesPersons.length === 0) return <Alert message="No sales data available" type="warning" showIcon />;
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+  };
+
+  const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
 
   const salesPersonColumns = [
     {
@@ -168,68 +187,21 @@ function Sales({ searchTerm }) {
             <Option key={person.name} value={person.name}>{person.name}</Option>
           ))}
         </Select>
-        <Row gutter={16}>
-          <Col span={12}>
-            <h3>Breakdown by Top 10 Clients</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={prepareChartData(salesData.individualPerformance[selectedSalesPerson], 'clients')}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                />
-                <YAxis tickFormatter={formatCurrency} />
-                <Tooltip
-                  formatter={(value) => formatCurrency(value)}
-                  labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                />
-                <Legend />
-                {Object.keys(prepareChartData(salesData.individualPerformance[selectedSalesPerson], 'clients')[0] || {})
-                  .filter(key => key !== 'date')
-                  .map((client, index) => (
-                    <Area
-                      key={client}
-                      type="monotone"
-                      dataKey={client}
-                      stackId="1"
-                      stroke={colors[index % colors.length]}
-                      fill={colors[index % colors.length]}
-                    />
-                  ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </Col>
-          <Col span={12}>
-            <h3>Breakdown by Top 10 Funds</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={prepareChartData(salesData.individualPerformance[selectedSalesPerson], 'funds')}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                />
-                <YAxis tickFormatter={formatCurrency} />
-                <Tooltip
-                  formatter={(value) => formatCurrency(value)}
-                  labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                />
-                <Legend />
-                {Object.keys(prepareChartData(salesData.individualPerformance[selectedSalesPerson], 'funds')[0] || {})
-                  .filter(key => key !== 'date')
-                  .map((fund, index) => (
-                    <Area
-                      key={fund}
-                      type="monotone"
-                      dataKey={fund}
-                      stackId="1"
-                      stroke={colors[index % colors.length]}
-                      fill={colors[index % colors.length]}
-                    />
-                  ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </Col>
-        </Row>
+        <ResponsiveContainer width="100%" height={400}>
+          <AreaChart data={salesData.individualPerformance[selectedSalesPerson]}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="date"
+              tickFormatter={(value) => new Date(value).toLocaleDateString()}
+            />
+            <YAxis tickFormatter={formatCurrency} />
+            <Tooltip
+              formatter={(value) => formatCurrency(value)}
+              labelFormatter={(label) => new Date(label).toLocaleDateString()}
+            />
+            <Area type="monotone" dataKey="income" stroke="#8884d8" fill="#8884d8" />
+          </AreaChart>
+        </ResponsiveContainer>
       </Card>
     </div>
   );
