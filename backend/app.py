@@ -231,23 +231,35 @@ def sales():
         for date, daily_data in data['sales_income'].items():
             processed_sales_data[date.isoformat()] = {}
             for salesperson, income in daily_data.items():
+                # Check if income is a float (total income) or a dictionary (detailed breakdown)
+                if isinstance(income, (int, float)):
+                    total_income = income
+                    clients_data = {}
+                    funds_data = {}
+                else:
+                    total_income = sum(income.values())
+                    clients_data = income
+                    funds_data = {fund: sum(client_data.values()) for client, client_data in income.items() for fund in client_data}
+
                 processed_sales_data[date.isoformat()][salesperson] = {
-                    'total': income,
-                    'clients': {},
-                    'funds': {}
+                    'total': total_income,
+                    'clients': clients_data,
+                    'funds': funds_data
                 }
 
-                # Add client and fund breakdown
-                for client, client_data in data['client_income'].get(date, {}).items():
-                    if data['client_sales'].get(client) == salesperson:
-                        processed_sales_data[date.isoformat()][salesperson]['clients'][client] = {
-                            'total': sum(client_data.values()),
-                            'funds': client_data
-                        }
-                        for fund, fund_income in client_data.items():
-                            if fund not in processed_sales_data[date.isoformat()][salesperson]['funds']:
-                                processed_sales_data[date.isoformat()][salesperson]['funds'][fund] = 0
-                            processed_sales_data[date.isoformat()][salesperson]['funds'][fund] += fund_income
+                # Add client and fund breakdown from client_income if available
+                if date in data['client_income']:
+                    for client, client_data in data['client_income'][date].items():
+                        if data['client_sales'].get(client) == salesperson:
+                            if client not in processed_sales_data[date.isoformat()][salesperson]['clients']:
+                                processed_sales_data[date.isoformat()][salesperson]['clients'][client] = {
+                                    'total': sum(client_data.values()),
+                                    'funds': client_data
+                                }
+                            for fund, fund_income in client_data.items():
+                                if fund not in processed_sales_data[date.isoformat()][salesperson]['funds']:
+                                    processed_sales_data[date.isoformat()][salesperson]['funds'][fund] = 0
+                                processed_sales_data[date.isoformat()][salesperson]['funds'][fund] += fund_income
 
         logger.debug(f"Processed sales data: {processed_sales_data}")
 
