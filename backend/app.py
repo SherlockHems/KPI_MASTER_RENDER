@@ -1,6 +1,6 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
-import kpi_master
+import kpi_master_v1_07
 import logging
 
 app = Flask(__name__)
@@ -15,23 +15,23 @@ def home():
 
 @app.route('/api/dashboard')
 def dashboard():
-    return jsonify(kpi_master.dashboard_data)
+    return jsonify(kpi_master_v1_07.dashboard_data)
 
 @app.route('/api/sales')
 def sales():
-    return jsonify(kpi_master.sales_data)
+    return jsonify(kpi_master_v1_07.sales_data)
 
 @app.route('/api/clients')
 def clients():
-    return jsonify(kpi_master.clients_data)
+    return jsonify(kpi_master_v1_07.clients_data)
 
 @app.route('/api/funds')
 def funds():
-    return jsonify(kpi_master.funds_data)
+    return jsonify(kpi_master_v1_07.funds_data)
 
 @app.route('/api/forecast')
 def forecast():
-    return jsonify(kpi_master.forecast_data)
+    return jsonify(kpi_master_v1_07.forecast_data)
 
 if __name__ == '__main__':
     app.run(debug=True)
