@@ -26,10 +26,9 @@ function Sales({ searchTerm }) {
         throw new Error(response.data.error);
       }
 
-      const processedData = processData(response.data.sales_income);
-      setSalesData(processedData);
-      if (processedData.salesPersons.length > 0) {
-        setSelectedSalesPerson(processedData.salesPersons[0].name);
+      setSalesData(response.data);
+      if (response.data.salesPersons.length > 0) {
+        setSelectedSalesPerson(response.data.salesPersons[0].name);
       }
     } catch (e) {
       console.error("Error fetching sales data:", e);
@@ -37,41 +36,6 @@ function Sales({ searchTerm }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const processData = (rawData) => {
-    console.log("Raw data received:", rawData);
-
-    if (!rawData || Object.keys(rawData).length === 0) {
-      console.error("Invalid or empty sales data received");
-      return { salesPersons: [], dailyContribution: [], individualPerformance: {} };
-    }
-
-    const salesPersons = Object.keys(Object.values(rawData)[0] || {});
-
-    const salesPersonsData = salesPersons.map(person => ({
-      name: person,
-      cumulativeIncome: Object.values(rawData).reduce((sum, day) => sum + (day[person] || 0), 0)
-    }));
-
-    const dailyContribution = Object.entries(rawData).map(([date, incomes]) => ({
-      date,
-      ...incomes
-    }));
-
-    const individualPerformance = {};
-    salesPersons.forEach(person => {
-      individualPerformance[person] = Object.entries(rawData).map(([date, incomes]) => ({
-        date,
-        income: incomes[person] || 0
-      }));
-    });
-
-    return {
-      salesPersons: salesPersonsData,
-      dailyContribution,
-      individualPerformance
-    };
   };
 
   if (loading) return <Spin size="large" />;
@@ -104,12 +68,49 @@ function Sales({ searchTerm }) {
   const cumulativeData = salesData.dailyContribution.reduce((acc, day) => {
     const prevDay = acc[acc.length - 1] || {};
     const newDay = { date: day.date };
-    salesData.salesPersons.forEach(person => {
-      newDay[person.name] = (prevDay[person.name] || 0) + (day[person.name] || 0);
+    Object.keys(day).forEach(key => {
+      if (key !== 'date') {
+        newDay[key] = (prevDay[key] || 0) + day[key];
+      }
     });
     acc.push(newDay);
     return acc;
   }, []);
+
+  const prepareIndividualData = (data, key) => {
+    return data.map(day => {
+      const newDay = { date: day.date };
+      Object.entries(day[key]).forEach(([name, value]) => {
+        newDay[name] = value;
+      });
+      return newDay;
+    });
+  };
+
+  const renderBreakdownChart = (data, dataKey) => (
+    <ResponsiveContainer width="100%" height={300}>
+      <AreaChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
+        <YAxis tickFormatter={formatCurrency} />
+        <Tooltip
+          formatter={(value) => formatCurrency(value)}
+          labelFormatter={(label) => new Date(label).toLocaleDateString()}
+        />
+        <Legend />
+        {Object.keys(data[0]).filter(key => key !== 'date').map((key, index) => (
+          <Area
+            key={key}
+            type="monotone"
+            dataKey={key}
+            stackId="1"
+            stroke={colors[index % colors.length]}
+            fill={colors[index % colors.length]}
+          />
+        ))}
+      </AreaChart>
+    </ResponsiveContainer>
+  );
 
   return (
     <div>
@@ -187,21 +188,16 @@ function Sales({ searchTerm }) {
             <Option key={person.name} value={person.name}>{person.name}</Option>
           ))}
         </Select>
-        <ResponsiveContainer width="100%" height={400}>
-          <AreaChart data={salesData.individualPerformance[selectedSalesPerson]}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="date"
-              tickFormatter={(value) => new Date(value).toLocaleDateString()}
-            />
-            <YAxis tickFormatter={formatCurrency} />
-            <Tooltip
-              formatter={(value) => formatCurrency(value)}
-              labelFormatter={(label) => new Date(label).toLocaleDateString()}
-            />
-            <Area type="monotone" dataKey="income" stroke="#8884d8" fill="#8884d8" />
-          </AreaChart>
-        </ResponsiveContainer>
+        <Row gutter={16}>
+          <Col span={12}>
+            <h3>Breakdown by Clients</h3>
+            {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'clients'), 'clients')}
+          </Col>
+          <Col span={12}>
+            <h3>Breakdown by Funds</h3>
+            {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'funds'), 'funds')}
+          </Col>
+        </Row>
       </Card>
     </div>
   );
