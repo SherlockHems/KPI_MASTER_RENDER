@@ -126,26 +126,37 @@ def get_clients():
         logger.info("Processing clients data")
         clients_data = []
 
-        for sales_person, clients in client_sales.items():
-            client_list = []
-            total_client_value = 0
+        for client, sales_person in client_sales.items():
+            logger.debug(f"Processing client: {client}, Sales Person: {sales_person}")
+            client_value = sum(sum(daily_income[date].get(client, {}).values()) for date in daily_income)
+            logger.debug(f"Client value: {client_value}")
 
-            for client in clients:
-                client_value = sum(sum(daily_income[date].get(client, {}).values()) for date in daily_income)
-                client_list.append({
-                    "name": client,
-                    "value": client_value
+            found = False
+            for sales_data in clients_data:
+                if sales_data["name"] == sales_person:
+                    sales_data["clients"].append({
+                        "name": client,
+                        "value": client_value
+                    })
+                    sales_data["clientCount"] += 1
+                    sales_data["totalClientValue"] += client_value
+                    found = True
+                    break
+
+            if not found:
+                clients_data.append({
+                    "name": sales_person,
+                    "clientCount": 1,
+                    "totalClientValue": client_value,
+                    "clients": [{
+                        "name": client,
+                        "value": client_value
+                    }]
                 })
-                total_client_value += client_value
 
-            clients_data.append({
-                "name": sales_person,
-                "clientCount": len(clients),
-                "totalClientValue": total_client_value,
-                "clients": client_list
-            })
+        logger.info(f"Processed data for {len(clients_data)} sales persons")
+        logger.debug(f"Clients data: {clients_data}")
 
-        logger.info("Clients data processed successfully")
         return jsonify(clients_data)
     except Exception as e:
         logger.error(f"Error processing clients data: {str(e)}")

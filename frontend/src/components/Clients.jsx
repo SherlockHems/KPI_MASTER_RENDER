@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Card, Row, Col } from 'antd';
+import { Table, Card, Row, Col, Spin } from 'antd';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 const Clients = ({ searchTerm }) => {
   const [clientsData, setClientsData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchClientsData();
@@ -13,11 +15,19 @@ const Clients = ({ searchTerm }) => {
 
   const fetchClientsData = async () => {
     try {
+      setLoading(true);
       const response = await fetch('/api/clients');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
+      console.log("Fetched data:", data);
       setClientsData(data);
     } catch (error) {
       console.error('Error fetching clients data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -40,59 +50,67 @@ const Clients = ({ searchTerm }) => {
     },
   ];
 
+  if (loading) return <Spin size="large" />;
+  if (error) return <div>Error: {error}</div>;
+  if (clientsData.length === 0) return <div>No client data available.</div>;
+
   return (
     <div>
       <h1>Clients Coverage</h1>
-      {filteredData.map((salesPerson) => (
-        <Card key={salesPerson.name} title={`${salesPerson.name}'s Clients`} style={{ marginBottom: 20 }}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Table
-                dataSource={salesPerson.clients}
-                columns={columns}
-                pagination={{ pageSize: 5 }}
-                scroll={{ y: 240 }}
-              />
-            </Col>
-            <Col span={6}>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={salesPerson.clients}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
+      {filteredData.length === 0 ? (
+        <div>No matching clients found.</div>
+      ) : (
+        filteredData.map((salesPerson) => (
+          <Card key={salesPerson.name} title={`${salesPerson.name}'s Clients`} style={{ marginBottom: 20 }}>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Table
+                  dataSource={salesPerson.clients}
+                  columns={columns}
+                  pagination={{ pageSize: 5 }}
+                  scroll={{ y: 240 }}
+                />
+              </Col>
+              <Col span={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={salesPerson.clients}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {salesPerson.clients.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Col>
+              <Col span={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={salesPerson.clients.slice(0, 5)}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
-                    {salesPerson.clients.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </Col>
-            <Col span={6}>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={salesPerson.clients.slice(0, 5)}
-                  layout="vertical"
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="value" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
-            </Col>
-          </Row>
-        </Card>
-      ))}
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Col>
+            </Row>
+          </Card>
+        ))
+      )}
     </div>
   );
 };
