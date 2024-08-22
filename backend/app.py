@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -161,27 +161,39 @@ def debug():
         'client_sales_structure': str(type(data['client_sales'])),
         'client_sales_sample': str(dict(list(data['client_sales'].items())[:5]))
     })
+
+@app.route('/api/debug')
+def debug_data():
+    return jsonify({
+        'daily_income_sample': str(dict(list(data['daily_income'].items())[:1])),
+        'client_sales_sample': str(dict(list(data['client_sales'].items())[:5]))
+    })
+
+
 @app.route('/api/dashboard')
 def dashboard():
     if 'error' in data:
         return jsonify({"error": data['error']})
 
     try:
-        total_income = sum(sum(fund_income for fund_income in client.values() if isinstance(fund_income, (int, float)))
-                           for client in data['daily_income'].values())
+        total_income = 0
+        for date, clients in data['daily_income'].items():
+            for client, funds in clients.items():
+                for fund, income in funds.items():
+                    if isinstance(income, (int, float)):
+                        total_income += income
+                    else:
+                        app.logger.warning(
+                            f"Non-numeric income value: {income} for date {date}, client {client}, fund {fund}")
 
         total_clients = len(set(client for day in data['daily_income'].values() for client in day.keys()))
-
         total_funds = len(set(fund for day in data['daily_income'].values()
                               for client in day.values()
                               for fund in client.keys()))
-
         total_sales = len(set(data['client_sales'].values()))
 
-        income_trend = [{'date': date.isoformat(),
-                         'income': sum(sum(
-                             fund_income for fund_income in client.values() if isinstance(fund_income, (int, float)))
-                                       for client in clients.values())}
+        income_trend = [{'date': date,
+                         'income': sum(sum(fund.values()) for fund in clients.values())}
                         for date, clients in data['daily_income'].items()]
 
         return jsonify({
@@ -192,9 +204,9 @@ def dashboard():
             'income_trend': income_trend
         })
     except Exception as e:
-        logging.error(f"Error in dashboard route: {str(e)}")
+        app.logger.error(f"Error in dashboard route: {str(e)}")
         return jsonify({"error": f"An error occurred while processing dashboard data: {str(e)}"}), 500
-    
+
 @app.route('/api/sales')
 def sales():
     return jsonify(sales_data)
