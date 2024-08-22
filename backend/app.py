@@ -229,29 +229,17 @@ def sales():
         # Process the sales data to include client and fund information
         processed_sales_data = {}
         for date, daily_data in data['sales_income'].items():
-            logger.debug(f"Processing date: {date}")
             processed_sales_data[date.isoformat()] = {}
             for salesperson, income in daily_data.items():
-                logger.debug(f"Processing salesperson: {salesperson}")
-                logger.debug(f"Income type: {type(income)}")
-                logger.debug(f"Income value: {income}")
-
                 # Check if income is a float (total income) or a dictionary (detailed breakdown)
                 if isinstance(income, (int, float)):
                     total_income = income
                     clients_data = {}
                     funds_data = {}
                 else:
-                    try:
-                        total_income = sum(income.values())
-                        clients_data = income
-                        funds_data = {fund: sum(client_data.values()) for client, client_data in income.items() for fund in client_data}
-                    except AttributeError as e:
-                        logger.error(f"AttributeError for salesperson {salesperson} on date {date}: {str(e)}")
-                        logger.error(f"Income data: {income}")
-                        total_income = 0
-                        clients_data = {}
-                        funds_data = {}
+                    total_income = sum(income.values())
+                    clients_data = income
+                    funds_data = {fund: sum(client_data.values()) for client, client_data in income.items() for fund in client_data}
 
                 processed_sales_data[date.isoformat()][salesperson] = {
                     'total': total_income,
