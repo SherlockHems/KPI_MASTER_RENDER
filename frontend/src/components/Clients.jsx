@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { ChinaMapPlot } from '@ant-design/charts';
+import ChinaMap from 'react-china-map';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
 const Clients = ({ searchTerm }) => {
   const [clientsData, setClientsData] = useState([]);
-  const [provinceCounts, setProvinceCounts] = useState([]);
+  const [provinceCounts, setProvinceCounts] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,9 +42,7 @@ const Clients = ({ searchTerm }) => {
       }
       const data = await response.json();
       console.log("Fetched province counts:", data);
-      // Transform the data for ChinaMapPlot
-      const transformedData = Object.entries(data).map(([name, value]) => ({ name, value }));
-      setProvinceCounts(transformedData);
+      setProvinceCounts(data);
     } catch (error) {
       console.error('Error fetching province counts:', error);
       message.error('Failed to fetch province counts. Please try again later.');
@@ -114,28 +112,25 @@ const Clients = ({ searchTerm }) => {
     <div>
       <h1>Clients Coverage Heat Map</h1>
       <Card style={{ marginBottom: 20 }}>
-        <ChinaMapPlot
+        <ChinaMap
           data={provinceCounts}
-          meta={{
-            name: {
-              alias: 'Province',
+          config={{
+            width: 1000,
+            height: 800,
+            tooltip: {
+              show: true,
+              formatter: ({ name, value }) => `${name}: ${value || 0} clients`,
             },
-            value: {
-              alias: 'Number of Clients',
-            },
-          }}
-          colorField="value"
-          style={{ height: 600 }}
-          tooltip={{
-            customContent: (title, data) => {
-              if (data && data.length > 0) {
-                return (
-                  <div>
-                    <p>{data[0].name}: {data[0].value} clients</p>
-                  </div>
-                );
-              }
-              return null;
+            visualMap: {
+              show: true,
+              min: 0,
+              max: Math.max(...Object.values(provinceCounts)),
+              text: ['High', 'Low'],
+              realtime: false,
+              calculable: true,
+              inRange: {
+                color: ['#e0f3f8', '#ffffbf', '#fee090', '#fdae61', '#f46d43', '#d73027', '#a50026'],
+              },
             },
           }}
         />

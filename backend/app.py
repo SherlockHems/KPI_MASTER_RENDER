@@ -176,15 +176,8 @@ def get_province_counts():
     try:
         logger.info("Processing province counts")
         province_counts = calculate_province_counts(client_sales)
-        # Transform the data to include all provinces, even those with zero counts
-        all_provinces = [
-            "安徽", "北京", "重庆", "福建", "甘肃", "广东", "广西", "贵州", "海南", "河北", "河南",
-            "黑龙江", "湖北", "湖南", "吉林", "江苏", "江西", "辽宁", "内蒙古", "宁夏", "青海",
-            "山东", "山西", "陕西", "上海", "四川", "天津", "西藏", "新疆", "云南", "浙江"
-        ]
-        transformed_counts = {province: province_counts.get(province, 0) for province in all_provinces}
-        logger.debug(f"Province counts: {transformed_counts}")
-        return jsonify(transformed_counts)
+        logger.debug(f"Province counts: {province_counts}")
+        return jsonify(province_counts)
     except Exception as e:
         logger.error(f"Error processing province counts: {str(e)}")
         logger.error(traceback.format_exc())
