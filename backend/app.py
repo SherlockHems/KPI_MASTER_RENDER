@@ -18,23 +18,35 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Load data
-start_date = datetime.date(2023, 12, 31)
-end_date = datetime.date(2024, 6, 30)
-initial_holdings = load_initial_holdings('data/2023DEC.csv')
-trades = load_trades('data/TRADES_LOG.csv')
-product_info = load_product_info('data/PRODUCT_INFO.csv')
-client_sales = load_client_sales('data/CLIENT_LIST.csv')
+logger.info("Starting data loading process")
 
-# Calculate data
-daily_holdings = calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
-daily_income, sales_income, client_income = calculate_daily_income(daily_holdings, product_info, client_sales)
-cumulative_sales_income = calculate_cumulative_income(sales_income)
-cumulative_client_income = calculate_cumulative_income(client_income)
-client_stats, fund_stats, sales_stats = show_income_statistics(daily_income, sales_income, client_income, daily_holdings, product_info)
-forecasts = generate_forecasts(daily_income, product_info, daily_holdings, trades, end_date)
-sales_person_breakdowns = generate_sales_person_breakdowns(daily_income, client_sales)
-client_breakdowns = generate_client_breakdowns(daily_income)
+try:
+    # Load data
+    start_date = datetime.date(2023, 12, 31)
+    end_date = datetime.date(2024, 6, 30)
+    initial_holdings = load_initial_holdings('data/2023DEC.csv')
+    logger.info("Initial holdings loaded successfully")
+    trades = load_trades('data/TRADES_LOG.csv')
+    logger.info("Trades loaded successfully")
+    product_info = load_product_info('data/PRODUCT_INFO.csv')
+    logger.info("Product info loaded successfully")
+    client_sales = load_client_sales('data/CLIENT_LIST.csv')
+    logger.info("Client sales info loaded successfully")
+
+    # Calculate data
+    logger.info("Starting data processing")
+    daily_holdings = calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
+    daily_income, sales_income, client_income = calculate_daily_income(daily_holdings, product_info, client_sales)
+    cumulative_sales_income = calculate_cumulative_income(sales_income)
+    cumulative_client_income = calculate_cumulative_income(client_income)
+    client_stats, fund_stats, sales_stats = show_income_statistics(daily_income, sales_income, client_income, daily_holdings, product_info)
+    forecasts = generate_forecasts(daily_income, product_info, daily_holdings, trades, end_date)
+    sales_person_breakdowns = generate_sales_person_breakdowns(daily_income, client_sales)
+    client_breakdowns = generate_client_breakdowns(daily_income)
+    logger.info("Data processing completed successfully")
+except Exception as e:
+    logger.error(f"Error during data loading or processing: {str(e)}")
+    logger.error(traceback.format_exc())
 
 def calculate_province_counts(client_sales):
     province_counts = Counter()
@@ -43,6 +55,10 @@ def calculate_province_counts(client_sales):
         if province != '-':
             province_counts[province] += 1
     return dict(province_counts)
+
+@app.route('/')
+def home():
+    return "KPI Master API is running"
 
 @app.route('/api/dashboard')
 def get_dashboard():
@@ -69,7 +85,7 @@ def get_dashboard():
     except Exception as e:
         logger.error(f"Error processing dashboard data: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'An error occurred while processing dashboard data'}), 500
+        return jsonify({'error': f'An error occurred while processing dashboard data: {str(e)}'}), 500
 
 @app.route('/api/sales')
 def get_sales():
@@ -124,7 +140,7 @@ def get_sales():
     except Exception as e:
         logger.error(f"Error processing sales data: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'An error occurred while processing sales data'}), 500
+        return jsonify({'error': f'An error occurred while processing sales data: {str(e)}'}), 500
 
 @app.route('/api/clients', methods=['GET'])
 def get_clients():
@@ -132,9 +148,12 @@ def get_clients():
         logger.info("Processing clients data")
         clients_data = []
 
+        logger.debug(f"client_sales: {client_sales}")
+        logger.debug(f"daily_income: {daily_income}")
+
         for client, data in client_sales.items():
             logger.debug(f"Processing client: {client}, Sales Person: {data['SALES']}")
-            client_value = sum(sum(daily_income[date].get(client, {}).values()) for date in daily_income)
+            client_value = sum(sum(daily_income.get(date, {}).get(client, {}).values()) for date in daily_income)
             logger.debug(f"Client value: {client_value}")
 
             found = False
@@ -169,12 +188,13 @@ def get_clients():
     except Exception as e:
         logger.error(f"Error processing clients data: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'An error occurred while processing clients data'}), 500
+        return jsonify({'error': f'An error occurred while processing clients data: {str(e)}'}), 500
 
 @app.route('/api/province-counts', methods=['GET'])
 def get_province_counts():
     try:
         logger.info("Processing province counts")
+        logger.debug(f"client_sales: {client_sales}")
         province_counts = calculate_province_counts(client_sales)
         # Transform the data to include all provinces, even those with zero counts
         all_provinces = [
@@ -188,7 +208,7 @@ def get_province_counts():
     except Exception as e:
         logger.error(f"Error processing province counts: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'An error occurred while processing province counts'}), 500
+        return jsonify({'error': f'An error occurred while processing province counts: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
