@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import ChinaMap from 'react-china-map';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
 const Clients = ({ searchTerm }) => {
   const [clientsData, setClientsData] = useState([]);
+  const [provinceCounts, setProvinceCounts] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchClientsData();
+    fetchProvinceCounts();
   }, []);
 
   const fetchClientsData = async () => {
@@ -21,13 +24,28 @@ const Clients = ({ searchTerm }) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log("Fetched data:", data);
+      console.log("Fetched clients data:", data);
       setClientsData(data);
     } catch (error) {
       console.error('Error fetching clients data:', error);
       message.error('Failed to fetch clients data. Please try again later.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProvinceCounts = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/province-counts`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log("Fetched province counts:", data);
+      setProvinceCounts(data);
+    } catch (error) {
+      console.error('Error fetching province counts:', error);
+      message.error('Failed to fetch province counts. Please try again later.');
     }
   };
 
@@ -61,6 +79,11 @@ const Clients = ({ searchTerm }) => {
       dataIndex: 'salesPerson',
       key: 'salesPerson',
     },
+    {
+      title: 'Province',
+      dataIndex: 'province',
+      key: 'province',
+    },
   ];
 
   const detailColumns = [
@@ -75,6 +98,11 @@ const Clients = ({ searchTerm }) => {
       key: 'value',
       render: (value) => `¥${value.toLocaleString()}`,
     },
+    {
+      title: 'Province',
+      dataIndex: 'province',
+      key: 'province',
+    },
   ];
 
   if (loading) return <Spin size="large" />;
@@ -82,6 +110,32 @@ const Clients = ({ searchTerm }) => {
 
   return (
     <div>
+      <h1>Clients Coverage Heat Map</h1>
+      <Card style={{ marginBottom: 20 }}>
+        <ChinaMap
+          data={provinceCounts}
+          config={{
+            width: 1000,
+            height: 800,
+            tooltip: {
+              show: true,
+              formatter: ({ name, value }) => `${name}: ${value || 0} clients`,
+            },
+            visualMap: {
+              show: true,
+              min: 0,
+              max: Math.max(...Object.values(provinceCounts)),
+              text: ['High', 'Low'],
+              realtime: false,
+              calculable: true,
+              inRange: {
+                color: ['#e0f3f8', '#ffffbf', '#fee090', '#fdae61', '#f46d43', '#d73027', '#a50026'],
+              },
+            },
+          }}
+        />
+      </Card>
+
       <h1>Clients Coverage Summary</h1>
       <Table
         dataSource={allClientsData}
