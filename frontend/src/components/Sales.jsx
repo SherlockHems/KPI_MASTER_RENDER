@@ -1,293 +1,195 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Card, Row, Col, Spin, Alert, Select, Table, Radio } from 'antd';
-import axios from 'axios';
+import { Table, Card, Row, Col, Spin, message } from 'antd';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { Heatmap } from '@ant-design/charts';
 
-const { Option } = Select;
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
-function Sales({ searchTerm }) {
-  const [salesData, setSalesData] = useState(null);
+const Clients = ({ searchTerm }) => {
+  const [clientsData, setClientsData] = useState([]);
+  const [provinceData, setProvinceData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedSalesPerson, setSelectedSalesPerson] = useState(null);
-  const [contributionType, setContributionType] = useState('cumulative');
-  const [breakdownType, setBreakdownType] = useState('daily');
 
   useEffect(() => {
-    fetchSalesData();
+    fetchClientsData();
+    fetchProvinceData();
   }, []);
 
-  const fetchSalesData = async () => {
+  const fetchClientsData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/sales`);
-      console.log("Sales API response:", response.data);
-
-      if (response.data.error) {
-        throw new Error(response.data.error);
+      const response = await fetch(`${API_URL}/api/clients`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      setSalesData(response.data);
-      if (response.data.salesPersons.length > 0) {
-        setSelectedSalesPerson(response.data.salesPersons[0].name);
-      }
-    } catch (e) {
-      console.error("Error fetching sales data:", e);
-      setError(`Error: ${e.message}`);
+      const data = await response.json();
+      console.log("Fetched clients data:", data);
+      setClientsData(data);
+    } catch (error) {
+      console.error('Error fetching clients data:', error);
+      message.error('Failed to fetch clients data. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) return <Spin size="large" />;
-  if (error) return <Alert message="Error" description={error} type="error" showIcon />;
-  if (!salesData || salesData.salesPersons.length === 0) return <Alert message="No sales data available" type="warning" showIcon />;
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+  const fetchProvinceData = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/province_counts`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log("Fetched province data:", data);
+      const formattedData = Object.entries(data).map(([province, count]) => ({
+        province,
+        count,
+      }));
+      setProvinceData(formattedData);
+    } catch (error) {
+      console.error('Error fetching province data:', error);
+      message.error('Failed to fetch province data. Please try again later.');
+    }
   };
 
-  const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
+  const filteredData = clientsData.filter(salesPerson =>
+    salesPerson.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    salesPerson.clients.some(client => client.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
-  const salesPersonColumns = [
+  const allClientsData = clientsData.flatMap(salesPerson =>
+    salesPerson.clients.map(client => ({
+      ...client,
+      salesPerson: salesPerson.name
+    }))
+  ).sort((a, b) => b.value - a.value);
+
+  const summaryColumns = [
     {
-      title: 'Sales Person',
+      title: 'Client Name',
       dataIndex: 'name',
       key: 'name',
-      filteredValue: [searchTerm],
-      onFilter: (value, record) => record.name.toLowerCase().includes(value.toLowerCase()),
     },
     {
-      title: 'Total Clients',
-      dataIndex: 'totalClients',
-      key: 'totalClients',
-      sorter: (a, b) => a.totalClients - b.totalClients,
+      title: 'Cumulative Income Contribution',
+      dataIndex: 'value',
+      key: 'value',
+      render: (value) => `¥${value.toLocaleString()}`,
+      sorter: (a, b) => a.value - b.value,
     },
     {
-      title: 'Total Income',
-      dataIndex: 'cumulativeIncome',
-      key: 'cumulativeIncome',
-      render: (text) => formatCurrency(text),
-      sorter: (a, b) => a.cumulativeIncome - b.cumulativeIncome,
-    }
+      title: 'Sales Person',
+      dataIndex: 'salesPerson',
+      key: 'salesPerson',
+    },
   ];
 
-  const cumulativeData = salesData.dailyContribution.reduce((acc, day) => {
-    const prevDay = acc[acc.length - 1] || {};
-    const newDay = { date: day.date };
-    Object.keys(day).forEach(key => {
-      if (key !== 'date') {
-        newDay[key] = (prevDay[key] || 0) + day[key];
-      }
-    });
-    acc.push(newDay);
-    return acc;
-  }, []);
-
-  const prepareIndividualData = (data, dataKey) => {
-    if (breakdownType === 'daily') {
-      return data.map(day => ({
-        date: day.date,
-        ...Object.fromEntries(Object.entries(day[dataKey]).map(([k, v]) => [k, Math.max(0, v)]))
-      }));
-    } else {
-      return data.reduce((acc, day) => {
-        const newDay = { date: day.date };
-        Object.keys(day[dataKey]).forEach(key => {
-          newDay[key] = Math.max(0, (acc[acc.length - 1]?.[key] || 0) + day[dataKey][key]);
-        });
-        acc.push(newDay);
-        return acc;
-      }, []);
-    }
-  };
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const sortedData = [...payload]
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 10);
-
-      return (
-        <div style={{ backgroundColor: 'white', padding: '10px', border: '1px solid #ccc' }}>
-          <p>{`Date: ${new Date(label).toLocaleDateString()}`}</p>
-          {sortedData.map((entry, index) => (
-            <p key={`item-${index}`} style={{ color: entry.color }}>
-              {`${entry.name}: ${formatCurrency(entry.value)}`}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const renderBreakdownChart = (data) => {
-    const allKeys = Object.keys(data[0]).filter(key => key !== 'date');
-    const maxValue = Math.max(...data.flatMap(day => Object.values(day).filter(val => typeof val === 'number')));
-
-    return (
-      <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
-          <YAxis
-            tickFormatter={formatCurrency}
-            domain={[0, maxValue]}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend />
-          {allKeys.map((key, index) => (
-            <Area
-              key={key}
-              type="monotone"
-              dataKey={key}
-              stackId="1"
-              stroke={colors[index % colors.length]}
-              fill={colors[index % colors.length]}
-            />
-          ))}
-        </AreaChart>
-      </ResponsiveContainer>
-    );
-  };
-
-  const prepareDailyIncomeData = () => {
-    return salesData.dailyContribution.map(day => {
-      const formattedDay = {
-        date: new Date(day.date).toLocaleDateString(),
-      };
-      salesData.salesPersons.forEach(person => {
-        formattedDay[person.name] = formatCurrency(Math.max(0, day[person.name] || 0));
-      });
-      return formattedDay;
-    });
-  };
-
-  const dailyIncomeColumns = [
+  const detailColumns = [
     {
-      title: 'Date',
-      dataIndex: 'date',
-      key: 'date',
+      title: 'Client Name',
+      dataIndex: 'name',
+      key: 'name',
     },
-    ...salesData.salesPersons.map(person => ({
-      title: person.name,
-      dataIndex: person.name,
-      key: person.name,
-    })),
+    {
+      title: 'Value',
+      dataIndex: 'value',
+      key: 'value',
+      render: (value) => `¥${value.toLocaleString()}`,
+    },
   ];
+
+  const heatmapConfig = {
+    map: {
+      type: 'china',
+    },
+    colorField: 'count',
+    style: {
+      height: '600px',
+    },
+    tooltip: {
+      title: 'province',
+      formatter: (datum) => {
+        return { name: 'Count', value: datum.count };
+      },
+    },
+  };
+
+  if (loading) return <Spin size="large" />;
+  if (clientsData.length === 0) return <div>No client data available.</div>;
 
   return (
     <div>
-      <h1>Sales Dashboard</h1>
+      <h1>Client Distribution by Province</h1>
+      <Card style={{ marginBottom: 20 }}>
+        <Heatmap {...heatmapConfig} data={provinceData} />
+      </Card>
 
-      <Row gutter={16}>
-        <Col span={12}>
-          <Card title="Cumulative Income Contribution by Sales Person">
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={salesData.salesPersons}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis tickFormatter={formatCurrency} />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="cumulativeIncome" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
+      <h1>Clients Coverage Summary</h1>
+      <Table
+        dataSource={allClientsData}
+        columns={summaryColumns}
+        pagination={{ pageSize: 10 }}
+        scroll={{ y: 400 }}
+      />
+
+      <h1>Clients Coverage by Sales Person</h1>
+      {filteredData.length === 0 ? (
+        <div>No matching clients found.</div>
+      ) : (
+        filteredData.map((salesPerson) => (
+          <Card key={salesPerson.name} title={`${salesPerson.name}'s Clients`} style={{ marginBottom: 20 }}>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Table
+                  dataSource={salesPerson.clients}
+                  columns={detailColumns}
+                  pagination={{ pageSize: 5 }}
+                  scroll={{ y: 240 }}
+                />
+              </Col>
+              <Col span={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={salesPerson.clients}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {salesPerson.clients.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Col>
+              <Col span={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={salesPerson.clients.slice(0, 5)}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Col>
+            </Row>
           </Card>
-        </Col>
-        <Col span={12}>
-          <Card title="Sales Person Performance">
-            <Table
-              dataSource={salesData.salesPersons}
-              columns={salesPersonColumns}
-              pagination={false}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card title="All Sales Persons Income Contribution" style={{ marginTop: 16 }}>
-        <Radio.Group
-          value={contributionType}
-          onChange={(e) => setContributionType(e.target.value)}
-          style={{ marginBottom: 16 }}
-        >
-          <Radio.Button value="cumulative">Cumulative</Radio.Button>
-          <Radio.Button value="daily">Daily</Radio.Button>
-        </Radio.Group>
-        <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={contributionType === 'cumulative' ? cumulativeData : salesData.dailyContribution}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="date"
-              tickFormatter={(value) => new Date(value).toLocaleDateString()}
-            />
-            <YAxis tickFormatter={formatCurrency} />
-            <Tooltip
-              formatter={(value) => formatCurrency(value)}
-              labelFormatter={(label) => new Date(label).toLocaleDateString()}
-            />
-            <Legend />
-            {salesData.salesPersons.map((person, index) => (
-              <Line
-                key={person.name}
-                type="monotone"
-                dataKey={person.name}
-                stroke={colors[index % colors.length]}
-                strokeWidth={2}
-                dot={contributionType === 'daily' ? { stroke: colors[index % colors.length], strokeWidth: 2, r: 4 } : false}
-                activeDot={{ r: 8 }}
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      </Card>
-
-      <Card title="Individual Sales Person Performance" style={{ marginTop: 16 }}>
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={12}>
-            <Select
-              style={{ width: 200 }}
-              value={selectedSalesPerson}
-              onChange={setSelectedSalesPerson}
-            >
-              {salesData.salesPersons.map(person => (
-                <Option key={person.name} value={person.name}>{person.name}</Option>
-              ))}
-            </Select>
-          </Col>
-          <Col span={12}>
-            <Radio.Group
-              value={breakdownType}
-              onChange={(e) => setBreakdownType(e.target.value)}
-            >
-              <Radio.Button value="daily">Daily</Radio.Button>
-              <Radio.Button value="cumulative">Cumulative</Radio.Button>
-            </Radio.Group>
-          </Col>
-        </Row>
-        <Row gutter={16}>
-          <Col span={12}>
-            <h3>Breakdown by Clients</h3>
-            {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'clients'))}
-          </Col>
-          <Col span={12}>
-            <h3>Breakdown by Funds</h3>
-            {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'funds'))}
-          </Col>
-        </Row>
-      </Card>
-
-      <Card title="Daily Income Contribution by Sales Person" style={{ marginTop: 16 }}>
-        <Table
-          dataSource={prepareDailyIncomeData()}
-          columns={dailyIncomeColumns}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 'max-content' }}
-        />
-      </Card>
+        ))
+      )}
     </div>
   );
-}
+};
 
-export default Sales;
+export default Clients;
