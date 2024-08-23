@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
 const Clients = ({ searchTerm }) => {
@@ -38,8 +39,7 @@ const Clients = ({ searchTerm }) => {
   const allClientsData = clientsData.flatMap(salesPerson =>
     salesPerson.clients.map(client => ({
       ...client,
-      salesPerson: salesPerson.name,
-      province: client.province || 'Unknown'  // Set default value for missing province
+      salesPerson: salesPerson.name
     }))
   ).sort((a, b) => b.value - a.value);
 
@@ -61,52 +61,27 @@ const Clients = ({ searchTerm }) => {
       dataIndex: 'salesPerson',
       key: 'salesPerson',
     },
-    {
-      title: 'Province',
-      dataIndex: 'province',
-      key: 'province',
-    },
   ];
 
-  const getProvinceData = (clients) => {
-    const provinceData = {};
-    clients.forEach(client => {
-      const province = client.province || 'Unknown';
-      provinceData[province] = (provinceData[province] || 0) + (client.value || 0);
-    });
-    return Object.entries(provinceData)
-      .map(([name, value]) => ({ province: name, value }))
-      .filter(item => item.value > 0)  // Remove entries with zero or negative values
-      .sort((a, b) => b.value - a.value);  // Sort by value in descending order
-  };
-
-  const overallProvinceData = getProvinceData(allClientsData);
-
-  const renderChart = (data) => {
-    if (data.length === 0) return <div>No data available for chart</div>;
-
-    return (
-      <ResponsiveContainer width="100%" height={400}>
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="province" />
-          <YAxis />
-          <Tooltip formatter={(value) => `¥${value.toLocaleString()}`} />
-          <Legend />
-          <Bar dataKey="value" fill="#8884d8" name="Income Contribution" />
-        </BarChart>
-      </ResponsiveContainer>
-    );
-  };
+  const detailColumns = [
+    {
+      title: 'Client Name',
+      dataIndex: 'name',
+      key: 'name',
+    },
+    {
+      title: 'Value',
+      dataIndex: 'value',
+      key: 'value',
+      render: (value) => `¥${value.toLocaleString()}`,
+    },
+  ];
 
   if (loading) return <Spin size="large" />;
   if (clientsData.length === 0) return <div>No client data available.</div>;
 
   return (
     <div>
-      <h1>Overall Client Regional Coverage</h1>
-      {renderChart(overallProvinceData)}
-
       <h1>Clients Coverage Summary</h1>
       <Table
         dataSource={allClientsData}
@@ -125,13 +100,46 @@ const Clients = ({ searchTerm }) => {
               <Col span={12}>
                 <Table
                   dataSource={salesPerson.clients}
-                  columns={summaryColumns.filter(col => col.key !== 'salesPerson')}
+                  columns={detailColumns}
                   pagination={{ pageSize: 5 }}
                   scroll={{ y: 240 }}
                 />
               </Col>
-              <Col span={12}>
-                {renderChart(getProvinceData(salesPerson.clients))}
+              <Col span={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={salesPerson.clients}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {salesPerson.clients.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Col>
+              <Col span={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={salesPerson.clients.slice(0, 5)}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
               </Col>
             </Row>
           </Card>
