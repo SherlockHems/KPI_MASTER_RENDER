@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 import logging
 import datetime
+from collections import Counter
 import pandas as pd
 import traceback
 from kpi_master_v1_07 import (
@@ -119,6 +120,28 @@ def get_sales():
         logger.error(f"Error processing sales data: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing sales data'}), 500
+
+def load_client_list(filename):
+    client_list = pd.read_csv(filename, encoding='utf-8')
+    return client_list
+
+def calculate_province_counts(client_list):
+    provinces = client_list['PROVINCE'].tolist()
+    # Remove '-' entries and strip suffixes
+    provinces = [p.replace('省', '').replace('市', '') for p in provinces if p != '-']
+    return dict(Counter(provinces))
+
+@app.route('/api/province_counts')
+def get_province_counts():
+    try:
+        logger.info("Processing province count data")
+        client_list = load_client_list('data/CLIENT_LIST.csv')
+        province_counts = calculate_province_counts(client_list)
+        return jsonify(province_counts)
+    except Exception as e:
+        logger.error(f"Error processing province count data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'An error occurred while processing province count data'}), 500
 
 @app.route('/api/clients', methods=['GET'])
 def get_clients():
