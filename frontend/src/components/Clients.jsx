@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { ChoroplethMap } from '@ant-design/charts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Treemap } from 'recharts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
@@ -99,25 +98,6 @@ const Clients = ({ searchTerm }) => {
     },
   ];
 
-  const config = {
-    map: {
-      type: 'china',
-    },
-    colorField: 'value',
-    style: {
-      height: 600,
-      width: '100%',
-    },
-    tooltip: {
-      visible: true,
-      fields: ['name', 'value'],
-    },
-    legend: {
-      position: 'bottom',
-    },
-    data: provinceData,
-  };
-
   if (loading) return <Spin size="large" />;
   if (clientsData.length === 0) return <div>No client data available.</div>;
 
@@ -125,7 +105,17 @@ const Clients = ({ searchTerm }) => {
     <div>
       <h1>Client Distribution by Province</h1>
       <Card style={{ marginBottom: 20 }}>
-        <ChoroplethMap {...config} />
+        <ResponsiveContainer width="100%" height={400}>
+          <Treemap
+            data={provinceData}
+            dataKey="value"
+            aspectRatio={4 / 3}
+            stroke="#fff"
+            fill="#8884d8"
+          >
+            <Tooltip content={<CustomTooltip />} />
+          </Treemap>
+        </ResponsiveContainer>
       </Card>
 
       <h1>Clients Coverage Summary</h1>
@@ -193,6 +183,17 @@ const Clients = ({ searchTerm }) => {
       )}
     </div>
   );
+};
+
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ backgroundColor: '#fff', padding: '5px', border: '1px solid #ccc' }}>
+        <p>{`${payload[0].payload.name} : ${payload[0].value}`}</p>
+      </div>
+    );
+  }
+  return null;
 };
 
 export default Clients;
