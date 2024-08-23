@@ -4,6 +4,7 @@
   "private": true,
   "proxy": "https://kpi-master-render.onrender.com",
   "dependencies": {
+    "@ant-design/charts": "^2.1.2",
     "@ant-design/icons": "^5.4.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
