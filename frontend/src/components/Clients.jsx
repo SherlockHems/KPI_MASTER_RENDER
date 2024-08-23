@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
-import { DualAxes } from '@ant-design/charts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
 const Clients = ({ searchTerm }) => {
@@ -60,79 +61,27 @@ const Clients = ({ searchTerm }) => {
       dataIndex: 'salesPerson',
       key: 'salesPerson',
     },
-    {
-      title: 'Province',
-      dataIndex: 'province',
-      key: 'province',
-    },
   ];
 
-  const getProvinceData = (clients) => {
-    const provinceData = {};
-    clients.forEach(client => {
-      if (client.province) {
-        provinceData[client.province] = (provinceData[client.province] || 0) + client.value;
-      }
-    });
-    return Object.entries(provinceData).map(([name, value]) => ({ province: name, value }));
-  };
-
-  const overallProvinceData = getProvinceData(allClientsData);
-
-  const config = {
-    data: [overallProvinceData, overallProvinceData],
-    xField: 'province',
-    yField: ['value', 'value'],
-    geometryOptions: [
-      {
-        geometry: 'column',
-        color: '#5B8FF9',
-      },
-      {
-        geometry: 'line',
-        smooth: true,
-        color: '#5AD8A6',
-      },
-    ],
-    xAxis: {
-      label: {
-        autoRotate: true,
-        autoHide: false,
-        autoEllipsis: true,
-      },
+  const detailColumns = [
+    {
+      title: 'Client Name',
+      dataIndex: 'name',
+      key: 'name',
     },
-    yAxis: {
-      value: {
-        min: 0,
-        title: {
-          text: 'Income Contribution (¥)',
-        },
-      },
+    {
+      title: 'Value',
+      dataIndex: 'value',
+      key: 'value',
+      render: (value) => `¥${value.toLocaleString()}`,
     },
-    tooltip: {
-      shared: true,
-      showMarkers: false,
-    },
-    interactions: [{ type: 'element-highlight' }, { type: 'active-region' }],
-    state: {
-      active: {
-        style: {
-          shadowBlur: 4,
-          stroke: '#000',
-          fill: 'red',
-        },
-      },
-    },
-  };
+  ];
 
   if (loading) return <Spin size="large" />;
   if (clientsData.length === 0) return <div>No client data available.</div>;
 
   return (
     <div>
-      <h1>Overall Client Regional Coverage</h1>
-      <DualAxes {...config} />
-
       <h1>Clients Coverage Summary</h1>
       <Table
         dataSource={allClientsData}
@@ -151,13 +100,46 @@ const Clients = ({ searchTerm }) => {
               <Col span={12}>
                 <Table
                   dataSource={salesPerson.clients}
-                  columns={summaryColumns.filter(col => col.key !== 'salesPerson')}
+                  columns={detailColumns}
                   pagination={{ pageSize: 5 }}
                   scroll={{ y: 240 }}
                 />
               </Col>
-              <Col span={12}>
-                <DualAxes {...config} data={[getProvinceData(salesPerson.clients), getProvinceData(salesPerson.clients)]} />
+              <Col span={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={salesPerson.clients}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {salesPerson.clients.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Col>
+              <Col span={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={salesPerson.clients.slice(0, 5)}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
               </Col>
             </Row>
           </Card>
