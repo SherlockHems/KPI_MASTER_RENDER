@@ -32,6 +32,8 @@ try:
     logger.info("Product info loaded successfully")
     client_sales = load_client_sales('data/CLIENT_LIST.csv')
     logger.info("Client sales info loaded successfully")
+    logger.debug(f"client_sales structure: {type(client_sales)}")
+    logger.debug(f"client_sales sample: {list(client_sales.items())[:5] if isinstance(client_sales, dict) else client_sales[:5]}")
 
     # Calculate data
     logger.info("Starting data processing")
@@ -50,10 +52,16 @@ except Exception as e:
 
 def calculate_province_counts(client_sales):
     province_counts = Counter()
-    for client, data in client_sales.items():
-        province = data.get('PROVINCE', '-')
-        if province != '-':
-            province_counts[province] += 1
+    if isinstance(client_sales, dict):
+        for client, data in client_sales.items():
+            if isinstance(data, dict):
+                province = data.get('PROVINCE', '-')
+                if province != '-':
+                    province_counts[province] += 1
+            else:
+                logger.warning(f"Unexpected data type for client {client}: {type(data)}")
+    else:
+        logger.warning(f"Unexpected type for client_sales: {type(client_sales)}")
     return dict(province_counts)
 
 @app.route('/')
@@ -148,21 +156,31 @@ def get_clients():
         logger.info("Processing clients data")
         clients_data = []
 
-        logger.debug(f"client_sales: {client_sales}")
-        logger.debug(f"daily_income: {daily_income}")
+        logger.debug(f"client_sales type: {type(client_sales)}")
+        logger.debug(f"client_sales sample: {list(client_sales.items())[:5] if isinstance(client_sales, dict) else client_sales[:5]}")
+        logger.debug(f"daily_income type: {type(daily_income)}")
+        logger.debug(f"daily_income sample: {list(daily_income.items())[:5] if isinstance(daily_income, dict) else daily_income[:5]}")
+
+        if not isinstance(client_sales, dict):
+            raise ValueError(f"client_sales is not a dictionary. Type: {type(client_sales)}")
 
         for client, data in client_sales.items():
-            logger.debug(f"Processing client: {client}, Sales Person: {data['SALES']}")
+            if not isinstance(data, dict):
+                logger.warning(f"Skipping client {client} due to unexpected data type: {type(data)}")
+                continue
+
+            logger.debug(f"Processing client: {client}, Sales Person: {data.get('SALES', 'Unknown')}")
             client_value = sum(sum(daily_income.get(date, {}).get(client, {}).values()) for date in daily_income)
             logger.debug(f"Client value: {client_value}")
 
+            sales_person = data.get('SALES', 'Unknown')
             found = False
             for sales_data in clients_data:
-                if sales_data["name"] == data['SALES']:
+                if sales_data["name"] == sales_person:
                     sales_data["clients"].append({
                         "name": client,
                         "value": client_value,
-                        "province": data['PROVINCE']
+                        "province": data.get('PROVINCE', 'Unknown')
                     })
                     sales_data["clientCount"] += 1
                     sales_data["totalClientValue"] += client_value
@@ -171,18 +189,18 @@ def get_clients():
 
             if not found:
                 clients_data.append({
-                    "name": data['SALES'],
+                    "name": sales_person,
                     "clientCount": 1,
                     "totalClientValue": client_value,
                     "clients": [{
                         "name": client,
                         "value": client_value,
-                        "province": data['PROVINCE']
+                        "province": data.get('PROVINCE', 'Unknown')
                     }]
                 })
 
         logger.info(f"Processed data for {len(clients_data)} sales persons")
-        logger.debug(f"Clients data: {clients_data}")
+        logger.debug(f"Clients data sample: {clients_data[:2]}")
 
         return jsonify(clients_data)
     except Exception as e:
@@ -190,11 +208,15 @@ def get_clients():
         logger.error(traceback.format_exc())
         return jsonify({'error': f'An error occurred while processing clients data: {str(e)}'}), 500
 
+
 @app.route('/api/province-counts', methods=['GET'])
 def get_province_counts():
     try:
         logger.info("Processing province counts")
-        logger.debug(f"client_sales: {client_sales}")
+        logger.debug(f"client_sales type: {type(client_sales)}")
+        logger.debug(
+            f"client_sales sample: {list(client_sales.items())[:5] if isinstance(client_sales, dict) else client_sales[:5]}")
+
         province_counts = calculate_province_counts(client_sales)
         # Transform the data to include all provinces, even those with zero counts
         all_provinces = [
