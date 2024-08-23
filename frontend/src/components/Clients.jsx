@@ -1,18 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Treemap } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
 const Clients = ({ searchTerm }) => {
   const [clientsData, setClientsData] = useState([]);
-  const [provinceData, setProvinceData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchClientsData();
-    fetchProvinceData();
   }, []);
 
   const fetchClientsData = async () => {
@@ -33,25 +30,6 @@ const Clients = ({ searchTerm }) => {
     }
   };
 
-  const fetchProvinceData = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/province_counts`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      console.log("Fetched province data:", data);
-      const formattedData = Object.entries(data).map(([name, value]) => ({
-        name,
-        value,
-      }));
-      setProvinceData(formattedData);
-    } catch (error) {
-      console.error('Error fetching province data:', error);
-      message.error('Failed to fetch province data. Please try again later.');
-    }
-  };
-
   const filteredData = clientsData.filter(salesPerson =>
     salesPerson.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     salesPerson.clients.some(client => client.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -63,6 +41,8 @@ const Clients = ({ searchTerm }) => {
       salesPerson: salesPerson.name
     }))
   ).sort((a, b) => b.value - a.value);
+
+  const top10Clients = allClientsData.slice(0, 10);
 
   const summaryColumns = [
     {
@@ -103,18 +83,20 @@ const Clients = ({ searchTerm }) => {
 
   return (
     <div>
-      <h1>Client Distribution by Province</h1>
+      <h1>Top 10 Clients by Cumulative Income</h1>
       <Card style={{ marginBottom: 20 }}>
         <ResponsiveContainer width="100%" height={400}>
-          <Treemap
-            data={provinceData}
-            dataKey="value"
-            aspectRatio={4 / 3}
-            stroke="#fff"
-            fill="#8884d8"
+          <BarChart
+            data={top10Clients}
+            layout="vertical"
+            margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
           >
-            <Tooltip content={<CustomTooltip />} />
-          </Treemap>
+            <XAxis type="number" />
+            <YAxis dataKey="name" type="category" />
+            <Tooltip formatter={(value) => `¥${value.toLocaleString()}`} />
+            <Legend />
+            <Bar dataKey="value" fill="#8884d8" />
+          </BarChart>
         </ResponsiveContainer>
       </Card>
 
@@ -132,68 +114,17 @@ const Clients = ({ searchTerm }) => {
       ) : (
         filteredData.map((salesPerson) => (
           <Card key={salesPerson.name} title={`${salesPerson.name}'s Clients`} style={{ marginBottom: 20 }}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Table
-                  dataSource={salesPerson.clients}
-                  columns={detailColumns}
-                  pagination={{ pageSize: 5 }}
-                  scroll={{ y: 240 }}
-                />
-              </Col>
-              <Col span={6}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={salesPerson.clients}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {salesPerson.clients.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Col>
-              <Col span={6}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart
-                    data={salesPerson.clients.slice(0, 5)}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="value" fill="#8884d8" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Col>
-            </Row>
+            <Table
+              dataSource={salesPerson.clients}
+              columns={detailColumns}
+              pagination={{ pageSize: 5 }}
+              scroll={{ y: 240 }}
+            />
           </Card>
         ))
       )}
     </div>
   );
-};
-
-const CustomTooltip = ({ active, payload }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div style={{ backgroundColor: '#fff', padding: '5px', border: '1px solid #ccc' }}>
-        <p>{`${payload[0].payload.name} : ${payload[0].value}`}</p>
-      </div>
-    );
-  }
-  return null;
 };
 
 export default Clients;
