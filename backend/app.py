@@ -50,6 +50,15 @@ except Exception as e:
     logger.error(f"Error during data loading or processing: {str(e)}")
     logger.error(traceback.format_exc())
 
+def standardize_province_name(province):
+    # Remove common suffixes
+    suffixes = ['省', '市', '自治区', '特别行政区']
+    for suffix in suffixes:
+        if province.endswith(suffix):
+            return province[:-len(suffix)]
+    return province
+
+
 def calculate_province_counts(client_sales):
     province_counts = Counter()
     if isinstance(client_sales, dict):
@@ -57,11 +66,14 @@ def calculate_province_counts(client_sales):
             if isinstance(data, dict):
                 province = data.get('PROVINCE', '-')
                 if province != '-':
-                    province_counts[province] += 1
+                    standardized_province = standardize_province_name(province)
+                    province_counts[standardized_province] += 1
             else:
                 logger.warning(f"Unexpected data type for client {client}: {type(data)}")
     else:
         logger.warning(f"Unexpected type for client_sales: {type(client_sales)}")
+
+    logger.debug(f"Raw province counts: {dict(province_counts)}")
     return dict(province_counts)
 
 @app.route('/')
@@ -150,19 +162,12 @@ def get_sales():
         logger.error(traceback.format_exc())
         return jsonify({'error': f'An error occurred while processing sales data: {str(e)}'}), 500
 
+
 @app.route('/api/clients', methods=['GET'])
 def get_clients():
     try:
         logger.info("Processing clients data")
         clients_data = []
-
-        logger.debug(f"client_sales type: {type(client_sales)}")
-        logger.debug(f"client_sales sample: {list(client_sales.items())[:5] if isinstance(client_sales, dict) else client_sales[:5]}")
-        logger.debug(f"daily_income type: {type(daily_income)}")
-        logger.debug(f"daily_income sample: {list(daily_income.items())[:5] if isinstance(daily_income, dict) else daily_income[:5]}")
-
-        if not isinstance(client_sales, dict):
-            raise ValueError(f"client_sales is not a dictionary. Type: {type(client_sales)}")
 
         for client, data in client_sales.items():
             if not isinstance(data, dict):
@@ -170,17 +175,24 @@ def get_clients():
                 continue
 
             logger.debug(f"Processing client: {client}, Sales Person: {data.get('SALES', 'Unknown')}")
-            client_value = sum(sum(daily_income.get(date, {}).get(client, {}).values()) for date in daily_income)
+
+            client_value = 0
+            for date in daily_income:
+                if client in daily_income[date]:
+                    client_value += sum(daily_income[date][client].values())
+
             logger.debug(f"Client value: {client_value}")
 
             sales_person = data.get('SALES', 'Unknown')
+            standardized_province = standardize_province_name(data.get('PROVINCE', 'Unknown'))
+
             found = False
             for sales_data in clients_data:
                 if sales_data["name"] == sales_person:
                     sales_data["clients"].append({
                         "name": client,
                         "value": client_value,
-                        "province": data.get('PROVINCE', 'Unknown')
+                        "province": standardized_province
                     })
                     sales_data["clientCount"] += 1
                     sales_data["totalClientValue"] += client_value
@@ -195,7 +207,7 @@ def get_clients():
                     "clients": [{
                         "name": client,
                         "value": client_value,
-                        "province": data.get('PROVINCE', 'Unknown')
+                        "province": standardized_province
                     }]
                 })
 
@@ -218,13 +230,17 @@ def get_province_counts():
             f"client_sales sample: {list(client_sales.items())[:5] if isinstance(client_sales, dict) else client_sales[:5]}")
 
         province_counts = calculate_province_counts(client_sales)
-        # Transform the data to include all provinces, even those with zero counts
+
+        # Predefined list of standardized province names
         all_provinces = [
             "安徽", "北京", "重庆", "福建", "甘肃", "广东", "广西", "贵州", "海南", "河北", "河南",
             "黑龙江", "湖北", "湖南", "吉林", "江苏", "江西", "辽宁", "内蒙古", "宁夏", "青海",
             "山东", "山西", "陕西", "上海", "四川", "天津", "西藏", "新疆", "云南", "浙江"
         ]
+
+        # Create the final counts dictionary
         transformed_counts = {province: province_counts.get(province, 0) for province in all_provinces}
+
         logger.debug(f"Province counts: {transformed_counts}")
         return jsonify(transformed_counts)
     except Exception as e:
