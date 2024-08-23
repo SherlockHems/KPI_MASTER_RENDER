@@ -4,7 +4,6 @@ import logging
 import datetime
 import pandas as pd
 import traceback
-from collections import Counter
 from kpi_master_v1_07 import (
     load_initial_holdings, load_trades, load_product_info, load_client_sales,
     calculate_daily_holdings, calculate_daily_income, calculate_cumulative_income,
@@ -35,14 +34,6 @@ client_stats, fund_stats, sales_stats = show_income_statistics(daily_income, sal
 forecasts = generate_forecasts(daily_income, product_info, daily_holdings, trades, end_date)
 sales_person_breakdowns = generate_sales_person_breakdowns(daily_income, client_sales)
 client_breakdowns = generate_client_breakdowns(daily_income)
-
-def calculate_province_counts(client_sales):
-    province_counts = Counter()
-    for client, data in client_sales.items():
-        province = data.get('PROVINCE', '-')
-        if province != '-':
-            province_counts[province] += 1
-    return dict(province_counts)
 
 @app.route('/api/dashboard')
 def get_dashboard():
@@ -81,12 +72,14 @@ def get_sales():
             'individualPerformance': {}
         }
 
+        # Prepare daily contribution data
         for date in sales_income.keys():
             daily_data = {'date': date.isoformat()}
             for sales_person in sales_income[date].keys():
                 daily_data[sales_person] = sales_income[date][sales_person]
             sales_data['dailyContribution'].append(daily_data)
 
+        # Prepare individual performance and sales persons data
         for sales_person in set(person for daily in sales_income.values() for person in daily.keys()):
             sales_data['individualPerformance'][sales_person] = []
             cumulative_income = 0
@@ -97,6 +90,7 @@ def get_sales():
                 if sales_person in sales_income[date]:
                     cumulative_income += sales_income[date][sales_person]
 
+                    # Get actual client and fund data
                     client_data = sales_person_breakdowns[date][sales_person]['clients']
                     fund_data = sales_person_breakdowns[date][sales_person]['funds']
 
@@ -115,8 +109,8 @@ def get_sales():
                 'cumulativeIncome': cumulative_income,
                 'totalClients': len(all_clients),
                 'totalFunds': len(all_funds),
-                'topClients': sorted(all_clients)[:10],
-                'topFunds': sorted(all_funds)[:10]
+                'topClients': sorted(all_clients)[:10],  # Just for reference, not used for counting
+                'topFunds': sorted(all_funds)[:10]  # Just for reference, not used for counting
             })
 
         logger.info("Sales data processed successfully")
@@ -132,18 +126,17 @@ def get_clients():
         logger.info("Processing clients data")
         clients_data = []
 
-        for client, data in client_sales.items():
-            logger.debug(f"Processing client: {client}, Sales Person: {data['SALES']}")
+        for client, sales_person in client_sales.items():
+            logger.debug(f"Processing client: {client}, Sales Person: {sales_person}")
             client_value = sum(sum(daily_income[date].get(client, {}).values()) for date in daily_income)
             logger.debug(f"Client value: {client_value}")
 
             found = False
             for sales_data in clients_data:
-                if sales_data["name"] == data['SALES']:
+                if sales_data["name"] == sales_person:
                     sales_data["clients"].append({
                         "name": client,
-                        "value": client_value,
-                        "province": data['PROVINCE']
+                        "value": client_value
                     })
                     sales_data["clientCount"] += 1
                     sales_data["totalClientValue"] += client_value
@@ -152,13 +145,12 @@ def get_clients():
 
             if not found:
                 clients_data.append({
-                    "name": data['SALES'],
+                    "name": sales_person,
                     "clientCount": 1,
                     "totalClientValue": client_value,
                     "clients": [{
                         "name": client,
-                        "value": client_value,
-                        "province": data['PROVINCE']
+                        "value": client_value
                     }]
                 })
 
@@ -170,18 +162,6 @@ def get_clients():
         logger.error(f"Error processing clients data: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing clients data'}), 500
-
-@app.route('/api/province-counts', methods=['GET'])
-def get_province_counts():
-    try:
-        logger.info("Processing province counts")
-        province_counts = calculate_province_counts(client_sales)
-        logger.debug(f"Province counts: {province_counts}")
-        return jsonify(province_counts)
-    except Exception as e:
-        logger.error(f"Error processing province counts: {str(e)}")
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'An error occurred while processing province counts'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
