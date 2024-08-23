@@ -3,7 +3,6 @@ from flask_cors import CORS
 import logging
 import datetime
 import pandas as pd
-import os
 from collections import Counter
 import traceback
 from kpi_master_v1_07 import (
@@ -122,45 +121,33 @@ def get_sales():
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing sales data'}), 500
 
-
 def load_client_list(filename):
     try:
-        logger.info(f"Attempting to load client list from file: {filename}")
-        logger.info(f"Current working directory: {os.getcwd()}")
-        logger.info(f"File exists: {os.path.exists(filename)}")
-
         client_list = pd.read_csv(filename, encoding='utf-8')
-        logger.info(f"Successfully loaded client list. Shape: {client_list.shape}")
-        logger.info(f"Columns: {client_list.columns.tolist()}")
-        logger.info(f"First few rows:\n{client_list.head().to_string()}")
+        logger.info(f"Loaded client list. Columns: {client_list.columns.tolist()}")
         return client_list
     except Exception as e:
         logger.error(f"Error loading client list: {str(e)}")
-        logger.error(traceback.format_exc())
         return None
-
 
 def calculate_province_counts(client_list):
     if client_list is None:
-        logger.error("Client list is None, cannot calculate province counts")
         return {}
 
-    if 'PROVINCE' not in client_list.columns:
-        logger.error(f"'PROVINCE' column not found. Available columns: {client_list.columns.tolist()}")
+    province_column = None
+    for col in ['PROVINCE', 'Province', 'province']:
+        if col in client_list.columns:
+            province_column = col
+            break
+
+    if province_column is None:
+        logger.error("No province column found in the client list")
         return {}
 
-    logger.info("Calculating province counts")
-    provinces = client_list['PROVINCE'].tolist()
-    logger.info(f"Raw provinces: {provinces[:10]}...")  # Log first 10 provinces
-
+    provinces = client_list[province_column].tolist()
     # Remove '-' entries and strip suffixes
     provinces = [p.replace('省', '').replace('市', '') for p in provinces if p != '-' and isinstance(p, str)]
-    logger.info(f"Processed provinces: {provinces[:10]}...")  # Log first 10 processed provinces
-
-    province_counts = dict(Counter(provinces))
-    logger.info(f"Province counts: {province_counts}")
-    return province_counts
-
+    return dict(Counter(provinces))
 
 @app.route('/api/province_counts')
 def get_province_counts():
@@ -174,7 +161,7 @@ def get_province_counts():
         if not province_counts:
             return jsonify({'error': 'No province data available'}), 404
 
-        logger.info(f"Returning province counts: {province_counts}")
+        logger.info(f"Province counts: {province_counts}")
         return jsonify(province_counts)
     except Exception as e:
         logger.error(f"Error processing province count data: {str(e)}")
