@@ -122,13 +122,31 @@ def get_sales():
         return jsonify({'error': 'An error occurred while processing sales data'}), 500
 
 def load_client_list(filename):
-    client_list = pd.read_csv(filename, encoding='utf-8')
-    return client_list
+    try:
+        client_list = pd.read_csv(filename, encoding='utf-8')
+        logger.info(f"Loaded client list. Columns: {client_list.columns.tolist()}")
+        return client_list
+    except Exception as e:
+        logger.error(f"Error loading client list: {str(e)}")
+        return None
 
 def calculate_province_counts(client_list):
-    provinces = client_list['PROVINCE'].tolist()
+    if client_list is None:
+        return {}
+
+    province_column = None
+    for col in ['PROVINCE', 'Province', 'province']:
+        if col in client_list.columns:
+            province_column = col
+            break
+
+    if province_column is None:
+        logger.error("No province column found in the client list")
+        return {}
+
+    provinces = client_list[province_column].tolist()
     # Remove '-' entries and strip suffixes
-    provinces = [p.replace('省', '').replace('市', '') for p in provinces if p != '-']
+    provinces = [p.replace('省', '').replace('市', '') for p in provinces if p != '-' and isinstance(p, str)]
     return dict(Counter(provinces))
 
 @app.route('/api/province_counts')
@@ -136,7 +154,14 @@ def get_province_counts():
     try:
         logger.info("Processing province count data")
         client_list = load_client_list('data/CLIENT_LIST.csv')
+        if client_list is None:
+            return jsonify({'error': 'Failed to load client list'}), 500
+
         province_counts = calculate_province_counts(client_list)
+        if not province_counts:
+            return jsonify({'error': 'No province data available'}), 404
+
+        logger.info(f"Province counts: {province_counts}")
         return jsonify(province_counts)
     except Exception as e:
         logger.error(f"Error processing province count data: {str(e)}")
