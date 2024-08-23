@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { ComposableMap, Geographies, Geography } from "react-simple-maps";
-import { scaleQuantile } from "d3-scale";
+import { ChoroplethMap } from '@ant-design/charts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
-const geoUrl = "https://raw.githubusercontent.com/deldersveld/topojson/master/countries/china/china-provinces.json";
-
 const Clients = ({ searchTerm }) => {
   const [clientsData, setClientsData] = useState([]);
-  const [provinceData, setProvinceData] = useState({});
+  const [provinceData, setProvinceData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,7 +42,11 @@ const Clients = ({ searchTerm }) => {
       }
       const data = await response.json();
       console.log("Fetched province data:", data);
-      setProvinceData(data);
+      const formattedData = Object.entries(data).map(([name, value]) => ({
+        name,
+        value,
+      }));
+      setProvinceData(formattedData);
     } catch (error) {
       console.error('Error fetching province data:', error);
       message.error('Failed to fetch province data. Please try again later.');
@@ -98,19 +99,24 @@ const Clients = ({ searchTerm }) => {
     },
   ];
 
-  const colorScale = scaleQuantile()
-    .domain(Object.values(provinceData))
-    .range([
-      "#ffedea",
-      "#ffcec5",
-      "#ffad9f",
-      "#ff8a75",
-      "#ff5533",
-      "#e2492d",
-      "#be3d26",
-      "#9a311f",
-      "#782618"
-    ]);
+  const config = {
+    map: {
+      type: 'china',
+    },
+    colorField: 'value',
+    style: {
+      height: 600,
+      width: '100%',
+    },
+    tooltip: {
+      visible: true,
+      fields: ['name', 'value'],
+    },
+    legend: {
+      position: 'bottom',
+    },
+    data: provinceData,
+  };
 
   if (loading) return <Spin size="large" />;
   if (clientsData.length === 0) return <div>No client data available.</div>;
@@ -119,22 +125,7 @@ const Clients = ({ searchTerm }) => {
     <div>
       <h1>Client Distribution by Province</h1>
       <Card style={{ marginBottom: 20 }}>
-        <ComposableMap projection="geoMercator" projectionConfig={{ scale: 600 }}>
-          <Geographies geography={geoUrl}>
-            {({ geographies }) =>
-              geographies.map((geo) => {
-                const { name } = geo.properties;
-                return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill={colorScale(provinceData[name] || 0)}
-                  />
-                );
-              })
-            }
-          </Geographies>
-        </ComposableMap>
+        <ChoroplethMap {...config} />
       </Card>
 
       <h1>Clients Coverage Summary</h1>
