@@ -658,6 +658,7 @@ def plot_forecasts(actual_data, forecasts, title, filename):
     plt.savefig(filename)
     plt.close()
 
+# Funds Tab Backend
 def calculate_fund_income(daily_income):
     fund_income = {}
     for date in daily_income:
@@ -667,6 +668,32 @@ def calculate_fund_income(daily_income):
                     fund_income[fund] = 0
                 fund_income[fund] += income
     return fund_income
+
+def calculate_top_funds_client_breakdown(daily_income, top_n=5):
+    fund_income = {}
+    fund_client_breakdown = {}
+
+    for date in daily_income:
+        for client in daily_income[date]:
+            for fund, income in daily_income[date][client].items():
+                if fund not in fund_income:
+                    fund_income[fund] = 0
+                    fund_client_breakdown[fund] = {}
+                fund_income[fund] += income
+                if client not in fund_client_breakdown[fund]:
+                    fund_client_breakdown[fund][client] = 0
+                fund_client_breakdown[fund][client] += income
+
+    top_funds = sorted(fund_income.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    result = []
+    for fund, total_income in top_funds:
+        client_breakdown = sorted(fund_client_breakdown[fund].items(), key=lambda x: x[1], reverse=True)[:5]
+        result.append({
+            "fund": fund,
+            "totalIncome": total_income,
+            "clientBreakdown": [{"client": client, "income": income} for client, income in client_breakdown]
+        })
+    return result
 
 def main():
     start_date = datetime.date(2023, 12, 31)

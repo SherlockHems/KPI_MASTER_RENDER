@@ -9,7 +9,7 @@ from kpi_master_v1_07 import (
     load_initial_holdings, load_trades, load_product_info, load_client_sales,
     calculate_daily_holdings, calculate_daily_income, calculate_cumulative_income,
     show_income_statistics, generate_forecasts, generate_sales_person_breakdowns,
-    generate_client_breakdowns, calculate_fund_income
+    generate_client_breakdowns, calculate_fund_income, calculate_top_funds_client_breakdown
 )
 
 app = Flask(__name__)
@@ -199,8 +199,16 @@ def get_funds():
             for fund, income in fund_income.items()
         ]
         funds_data.sort(key=lambda x: x['income'], reverse=True)
+
+        top_funds_breakdown = calculate_top_funds_client_breakdown(daily_income)
+
+        response_data = {
+            "allFunds": funds_data,
+            "topFundsBreakdown": top_funds_breakdown
+        }
+
         logger.info("Funds data processed successfully")
-        return jsonify(funds_data)
+        return jsonify(response_data)
     except Exception as e:
         logger.error(f"Error processing funds data: {str(e)}")
         logger.error(traceback.format_exc())
