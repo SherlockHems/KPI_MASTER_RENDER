@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
-import { PieChart, Pie, Cell, ResponsiveContainer, Treemap, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Treemap, Tooltip, Legend } from 'recharts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
@@ -75,7 +75,8 @@ const Clients = ({ searchTerm }) => {
       dataIndex: 'value',
       key: 'value',
       render: (value) => `¥${value.toLocaleString()}`,
-      sorter: (a, b) => a.value - b.value,
+      sorter: (a, b) => b.value - a.value,
+      defaultSortOrder: 'descend',
     },
     {
       title: 'Sales Person',
@@ -95,6 +96,8 @@ const Clients = ({ searchTerm }) => {
       dataIndex: 'value',
       key: 'value',
       render: (value) => `¥${value.toLocaleString()}`,
+      sorter: (a, b) => b.value - a.value,
+      defaultSortOrder: 'descend',
     },
   ];
 
@@ -152,12 +155,14 @@ const Clients = ({ searchTerm }) => {
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
+                      label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
                       {salesPerson.clients.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               </Col>
