@@ -11,7 +11,7 @@ import {
 import Dashboard from "./components/Dashboard";
 import Sales from "./components/Sales";
 import Clients from "./components/Clients";
-import Forecast from "./components/Forecast";
+import Funds from "./components/Funds";
 import './App.css';
 
 const { Header, Sider, Content } = Layout;
@@ -71,8 +71,8 @@ function App() {
               <Route path="/" element={<Dashboard searchTerm={searchTerm} />} />
               <Route path="/sales" element={<Sales searchTerm={searchTerm} />} />
               <Route path="/clients" element={<Clients searchTerm={searchTerm} />} />
-              <Route path="/funds" element={<h1>Funds Page</h1>} />
-              <Route path="/forecast" element={<Forecast />} />
+              <Route path="/funds" element={<Funds searchTerm={searchTerm} />} />
+              <Route path="/forecast" element={<h1>Forecast Page</h1>} />
             </Routes>
           </Content>
         </Layout>
