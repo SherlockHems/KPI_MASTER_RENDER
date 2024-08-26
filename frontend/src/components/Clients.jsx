@@ -27,7 +27,7 @@ const Clients = ({ searchTerm }) => {
       setClientsData(data);
     } catch (error) {
       console.error('Error fetching clients data:', error);
-      message.error('Failed to fetch clients data. Please try again later.');
+      message.error('获取客户数据失败。请稍后再试。');
     } finally {
       setLoading(false);
     }
@@ -48,7 +48,7 @@ const Clients = ({ searchTerm }) => {
       setProvinceData(formattedData);
     } catch (error) {
       console.error('Error fetching province data:', error);
-      message.error('Failed to fetch province data. Please try again later.');
+      message.error('获取省份数据失败。请稍后再试。');
     }
   };
 
@@ -68,12 +68,12 @@ const Clients = ({ searchTerm }) => {
 
   const summaryColumns = [
     {
-      title: 'Client Name',
+      title: '客户名称',
       dataIndex: 'name',
       key: 'name',
     },
     {
-      title: 'Cumulative Income Contribution',
+      title: '累计收入贡献',
       dataIndex: 'value',
       key: 'value',
       render: (value) => formatValue(value),
@@ -81,7 +81,7 @@ const Clients = ({ searchTerm }) => {
       defaultSortOrder: 'descend',
     },
     {
-      title: 'Sales Person',
+      title: '销售人员',
       dataIndex: 'salesPerson',
       key: 'salesPerson',
     },
@@ -89,12 +89,12 @@ const Clients = ({ searchTerm }) => {
 
   const detailColumns = [
     {
-      title: 'Client Name',
+      title: '客户名称',
       dataIndex: 'name',
       key: 'name',
     },
     {
-      title: 'Value',
+      title: '价值',
       dataIndex: 'value',
       key: 'value',
       render: (value) => formatValue(value),
@@ -104,11 +104,11 @@ const Clients = ({ searchTerm }) => {
   ];
 
   if (loading) return <Spin size="large" />;
-  if (clientsData.length === 0) return <div>No client data available.</div>;
+  if (clientsData.length === 0) return <div>暂无客户数据。</div>;
 
   return (
     <div>
-      <h1>Client Distribution by Province</h1>
+      <h1>客户省份分布</h1>
       <Card style={{ marginBottom: 20 }}>
         <ResponsiveContainer width="100%" height={500}>
           <Treemap
@@ -123,7 +123,7 @@ const Clients = ({ searchTerm }) => {
         </ResponsiveContainer>
       </Card>
 
-      <h1>Clients Coverage Summary</h1>
+      <h1>客户覆盖总览</h1>
       <Table
         dataSource={allClientsData}
         columns={summaryColumns}
@@ -131,12 +131,12 @@ const Clients = ({ searchTerm }) => {
         scroll={{ y: 600 }}
       />
 
-      <h1>Clients Coverage by Sales Person</h1>
+      <h1>按销售人员的客户覆盖</h1>
       {filteredData.length === 0 ? (
-        <div>No matching clients found.</div>
+        <div>未找到匹配的客户。</div>
       ) : (
         filteredData.map((salesPerson) => (
-          <Card key={salesPerson.name} title={`${salesPerson.name}'s Clients`} style={{ marginBottom: 20 }}>
+          <Card key={salesPerson.name} title={`${salesPerson.name}的客户`} style={{ marginBottom: 20 }}>
             <Row gutter={16}>
               <Col span={12}>
                 <Table
