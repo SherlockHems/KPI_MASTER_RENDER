@@ -658,6 +658,16 @@ def plot_forecasts(actual_data, forecasts, title, filename):
     plt.savefig(filename)
     plt.close()
 
+def calculate_fund_income(daily_income):
+    fund_income = {}
+    for date in daily_income:
+        for client in daily_income[date]:
+            for fund, income in daily_income[date][client].items():
+                if fund not in fund_income:
+                    fund_income[fund] = 0
+                fund_income[fund] += income
+    return fund_income
+
 def main():
     start_date = datetime.date(2023, 12, 31)
     end_date = datetime.date(2024, 6, 30)

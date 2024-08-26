@@ -9,7 +9,7 @@ from kpi_master_v1_07 import (
     load_initial_holdings, load_trades, load_product_info, load_client_sales,
     calculate_daily_holdings, calculate_daily_income, calculate_cumulative_income,
     show_income_statistics, generate_forecasts, generate_sales_person_breakdowns,
-    generate_client_breakdowns
+    generate_client_breakdowns, calculate_fund_income
 )
 
 app = Flask(__name__)
@@ -185,6 +185,26 @@ def get_clients():
         logger.error(f"Error processing clients data: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing clients data'}), 500
+
+@app.route('/api/funds')
+def get_funds():
+    try:
+        logger.info("Processing funds data")
+        fund_income = calculate_fund_income(daily_income)
+        funds_data = [
+            {
+                "name": fund,
+                "income": income
+            }
+            for fund, income in fund_income.items()
+        ]
+        funds_data.sort(key=lambda x: x['income'], reverse=True)
+        logger.info("Funds data processed successfully")
+        return jsonify(funds_data)
+    except Exception as e:
+        logger.error(f"Error processing funds data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'An error occurred while processing funds data'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
