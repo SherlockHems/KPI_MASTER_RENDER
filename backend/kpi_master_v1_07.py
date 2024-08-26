@@ -38,20 +38,26 @@ def clean_money_string(money_str):
     return float(cleaned)
 
 # 加载初始持仓
-def load_initial_holdings(filename):
+def load_initial_holdings(filename, target_date='20231231'):
     holdings = {}
     with open(filename, 'r', encoding='utf-8') as file:
         csv_reader = csv.DictReader(file)
         for row in csv_reader:
+            date = row.get('SHARES_DATE', '')  # Assume there's a date column
+            if date != target_date:
+                continue  # Skip rows that don't match the target date
+
             client_name = row['CLIENT_NAME']
             fund_name = row['FUND_NAME']
             money_value = clean_money_string(row['MONEY_VALUE'])
 
             if client_name not in holdings:
                 holdings[client_name] = {}
-            holdings[client_name][fund_name] = money_value
+            if fund_name not in holdings[client_name]:
+                holdings[client_name][fund_name] = 0
+            holdings[client_name][fund_name] += money_value  # Sum up multiple holdings
 
-    print(f"Loaded initial holdings for {len(holdings)} clients.")
+    print(f"Loaded initial holdings for {len(holdings)} clients as of {target_date}.")
     return holdings
 
 # 加载交易记录
