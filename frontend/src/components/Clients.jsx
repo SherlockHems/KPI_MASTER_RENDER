@@ -8,11 +8,13 @@ const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onren
 const Clients = ({ searchTerm }) => {
   const [clientsData, setClientsData] = useState([]);
   const [provinceData, setProvinceData] = useState([]);
+  const [clientListData, setClientListData] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchClientsData();
     fetchProvinceData();
+    fetchClientListData();
   }, []);
 
   const fetchClientsData = async () => {
@@ -52,6 +54,28 @@ const Clients = ({ searchTerm }) => {
     }
   };
 
+  const fetchClientListData = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/client_list`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log("Fetched client list data:", data);
+      const clientMap = data.reduce((acc, client) => {
+        acc[client.CLIENT_NAME] = {
+          phoneNumber: client.PHONE_NUMBER,
+          province: client.PROVINCE
+        };
+        return acc;
+      }, {});
+      setClientListData(clientMap);
+    } catch (error) {
+      console.error('Error fetching client list data:', error);
+      message.error('获取客户列表数据失败。请稍后再试。');
+    }
+  };
+
   const filteredData = clientsData.filter(salesPerson =>
     salesPerson.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     salesPerson.clients.some(client => client.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -60,7 +84,9 @@ const Clients = ({ searchTerm }) => {
   const allClientsData = clientsData.flatMap(salesPerson =>
     salesPerson.clients.map(client => ({
       ...client,
-      salesPerson: salesPerson.name
+      salesPerson: salesPerson.name,
+      phoneNumber: clientListData[client.name]?.phoneNumber || '未提供',
+      province: clientListData[client.name]?.province || '未知'
     }))
   ).sort((a, b) => b.value - a.value);
 
@@ -84,6 +110,16 @@ const Clients = ({ searchTerm }) => {
       title: '销售人员',
       dataIndex: 'salesPerson',
       key: 'salesPerson',
+    },
+    {
+      title: '电话号码',
+      dataIndex: 'phoneNumber',
+      key: 'phoneNumber',
+    },
+    {
+      title: '省份',
+      dataIndex: 'province',
+      key: 'province',
     },
   ];
 
@@ -128,7 +164,7 @@ const Clients = ({ searchTerm }) => {
         dataSource={allClientsData}
         columns={summaryColumns}
         pagination={{ pageSize: 15 }}
-        scroll={{ y: 600 }}
+        scroll={{ y: 600, x: 1200 }}
       />
 
       <h1>按销售人员的客户覆盖</h1>
