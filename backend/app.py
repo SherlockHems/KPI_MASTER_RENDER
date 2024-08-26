@@ -214,5 +214,48 @@ def get_funds():
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing funds data'}), 500
 
+
+@app.route('/api/forecast')
+def get_forecast():
+    try:
+        logger.info("Processing forecast data")
+
+        # Calculate total daily income for all clients
+        total_daily_income = {date: sum(sum(client.values()) for client in clients.values())
+                              for date, clients in daily_income.items()}
+
+        # Calculate cumulative income
+        cumulative_income = {}
+        running_total = 0
+        for date, income in sorted(total_daily_income.items()):
+            running_total += income
+            cumulative_income[date.isoformat()] = running_total
+
+        # Get the last known date and income
+        last_known_date = max(total_daily_income.keys())
+        last_known_income = total_daily_income[last_known_date]
+
+        # Generate forecast data
+        forecast_data = {}
+        current_date = last_known_date
+        while current_date <= end_date:
+            if current_date <= last_known_date:
+                forecast_data[current_date.isoformat()] = cumulative_income[current_date.isoformat()]
+            else:
+                forecast_data[current_date.isoformat()] = forecast_data[current_date.isoformat()] + last_known_income
+            current_date += datetime.timedelta(days=1)
+
+        forecast_response = {
+            'actual': {date: value for date, value in cumulative_income.items()},
+            'forecast': forecast_data
+        }
+
+        logger.info("Forecast data processed successfully")
+        return jsonify(forecast_response)
+    except Exception as e:
+        logger.error(f"Error processing forecast data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'An error occurred while processing forecast data'}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)
