@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Card, Spin, Alert } from 'antd';
+import { Table, Card, Spin, Alert, Row, Col } from 'antd';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import axios from 'axios';
 
@@ -74,7 +74,7 @@ const Funds = ({ searchTerm }) => {
       </Card>
       <Card title="基金收入贡献" style={{ marginTop: 16 }}>
         <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={fundsData.allFunds.slice(0, 20)} // 显示前20个基金
+          <BarChart data={fundsData.allFunds.slice(0, 20)}
             margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" />
@@ -86,43 +86,46 @@ const Funds = ({ searchTerm }) => {
         </ResponsiveContainer>
       </Card>
       <Card title="前5个收入贡献产品的客户收入分布" style={{ marginTop: 16 }}>
-        <ResponsiveContainer width="100%" height={600}>
-          <PieChart>
-            {fundsData.topFundsBreakdown.map((fund, index) => (
-              <Pie
-                key={fund.fund}
-                data={fund.clientBreakdown}
-                cx={`${(index % 3 + 1) * 25}%`}
-                cy={`${Math.floor(index / 3) * 50 + 25}%`}
-                innerRadius={60}
-                outerRadius={80}
-                fill="#8884d8"
-                paddingAngle={5}
-                dataKey="income"
-              >
-                {fund.clientBreakdown.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-            ))}
-            <Tooltip formatter={(value) => formatCurrency(value)} />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
-        <div style={{ marginTop: 20 }}>
+        <Row gutter={[16, 16]}>
           {fundsData.topFundsBreakdown.map((fund, index) => (
-            <div key={fund.fund}>
-              <h3>{`${index + 1}. ${fund.fund}`}</h3>
-              <ul>
-                {fund.clientBreakdown.map((client, clientIndex) => (
-                  <li key={client.client} style={{ color: COLORS[clientIndex % COLORS.length] }}>
-                    {`${client.client}: ${formatCurrency(client.income)}`}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <Col xs={24} sm={24} md={12} lg={12} xl={8} key={fund.fund}>
+              <Card title={`${index + 1}. ${fund.fund}`}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={fund.clientBreakdown}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      paddingAngle={5}
+                      dataKey="income"
+                      label={(entry) => entry.client}
+                    >
+                      {fund.clientBreakdown.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                    <Legend
+                      layout="vertical"
+                      align="right"
+                      verticalAlign="middle"
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <ul style={{ marginTop: 10, paddingLeft: 20 }}>
+                  {fund.clientBreakdown.map((client, clientIndex) => (
+                    <li key={client.client} style={{ color: COLORS[clientIndex % COLORS.length] }}>
+                      {`${client.client}: ${formatCurrency(client.income)}`}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </Col>
           ))}
-        </div>
+        </Row>
       </Card>
     </div>
   );
