@@ -9,7 +9,7 @@ from kpi_master_v1_07 import (
     load_initial_holdings, load_trades, load_product_info, load_client_sales,
     calculate_daily_holdings, calculate_daily_income, calculate_cumulative_income,
     show_income_statistics, generate_forecasts, generate_sales_person_breakdowns,
-    generate_client_breakdowns, calculate_fund_income, calculate_top_funds_client_breakdown
+    generate_client_breakdowns, calculate_fund_income, calculate_all_funds_client_breakdown
 )
 
 app = Flask(__name__)
