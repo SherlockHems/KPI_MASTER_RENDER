@@ -36,26 +36,26 @@ function App() {
             style={{ height: '100%', borderRight: 0 }}
           >
             <Menu.Item key="1" icon={<DashboardOutlined />}>
-              <Link to="/">仪表板</Link>
+              <Link to="/">Dashboard</Link>
             </Menu.Item>
             <Menu.Item key="2" icon={<DollarOutlined />}>
-              <Link to="/sales">销售</Link>
+              <Link to="/sales">Sales</Link>
             </Menu.Item>
             <Menu.Item key="3" icon={<TeamOutlined />}>
-              <Link to="/clients">客户</Link>
+              <Link to="/clients">Clients</Link>
             </Menu.Item>
             <Menu.Item key="4" icon={<FundOutlined />}>
-              <Link to="/funds">基金</Link>
+              <Link to="/funds">Funds</Link>
             </Menu.Item>
             <Menu.Item key="5" icon={<LineChartOutlined />}>
-              <Link to="/forecast">预测</Link>
+              <Link to="/forecast">Forecast</Link>
             </Menu.Item>
           </Menu>
         </Sider>
         <Layout className="site-layout">
           <Header className="site-layout-background" style={{ padding: 0 }}>
             <Search
-              placeholder="搜索..."
+              placeholder="Search..."
               onSearch={handleSearch}
               style={{ width: 200, margin: '16px 24px' }}
             />
