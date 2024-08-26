@@ -136,23 +136,23 @@ const Clients = ({ searchTerm }) => {
         filteredData.map((salesPerson) => (
           <Card key={salesPerson.name} title={`${salesPerson.name}'s Clients`} style={{ marginBottom: 20 }}>
             <Row gutter={16}>
-              <Col span={16}>
+              <Col span={12}>
                 <Table
                   dataSource={salesPerson.clients}
                   columns={detailColumns}
-                  pagination={{ pageSize: 5 }}
-                  scroll={{ y: 240 }}
+                  pagination={{ pageSize: 10 }}
+                  scroll={{ y: 400 }}
                 />
               </Col>
-              <Col span={8}>
-                <ResponsiveContainer width="100%" height={300}>
+              <Col span={12}>
+                <ResponsiveContainer width="100%" height={400}>
                   <PieChart>
                     <Pie
                       data={salesPerson.clients}
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
+                      labelLine={true}
+                      outerRadius={120}
                       fill="#8884d8"
                       dataKey="value"
                       label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -162,7 +162,7 @@ const Clients = ({ searchTerm }) => {
                       ))}
                     </Pie>
                     <Tooltip />
-                    <Legend />
+                    <Legend layout="vertical" align="right" verticalAlign="middle" />
                   </PieChart>
                 </ResponsiveContainer>
               </Col>
