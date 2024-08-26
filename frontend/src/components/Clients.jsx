@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Treemap } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Treemap, Tooltip } from 'recharts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
@@ -133,7 +133,7 @@ const Clients = ({ searchTerm }) => {
         filteredData.map((salesPerson) => (
           <Card key={salesPerson.name} title={`${salesPerson.name}'s Clients`} style={{ marginBottom: 20 }}>
             <Row gutter={16}>
-              <Col span={12}>
+              <Col span={16}>
                 <Table
                   dataSource={salesPerson.clients}
                   columns={detailColumns}
@@ -141,7 +141,7 @@ const Clients = ({ searchTerm }) => {
                   scroll={{ y: 240 }}
                 />
               </Col>
-              <Col span={6}>
+              <Col span={8}>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -158,23 +158,7 @@ const Clients = ({ searchTerm }) => {
                       ))}
                     </Pie>
                     <Tooltip />
-                    <Legend />
                   </PieChart>
-                </ResponsiveContainer>
-              </Col>
-              <Col span={6}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart
-                    data={salesPerson.clients.slice(0, 5)}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="value" fill="#8884d8" />
-                  </BarChart>
                 </ResponsiveContainer>
               </Col>
             </Row>
