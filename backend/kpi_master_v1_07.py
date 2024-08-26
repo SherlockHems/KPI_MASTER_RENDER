@@ -669,7 +669,8 @@ def calculate_fund_income(daily_income):
                 fund_income[fund] += income
     return fund_income
 
-def calculate_top_funds_client_breakdown(daily_income, top_n=5):
+
+def calculate_all_funds_client_breakdown(daily_income):
     fund_income = {}
     fund_client_breakdown = {}
 
@@ -684,15 +685,18 @@ def calculate_top_funds_client_breakdown(daily_income, top_n=5):
                     fund_client_breakdown[fund][client] = 0
                 fund_client_breakdown[fund][client] += income
 
-    top_funds = sorted(fund_income.items(), key=lambda x: x[1], reverse=True)[:top_n]
     result = []
-    for fund, total_income in top_funds:
-        client_breakdown = sorted(fund_client_breakdown[fund].items(), key=lambda x: x[1], reverse=True)[:5]
+    for fund, total_income in fund_income.items():
+        client_breakdown = sorted(fund_client_breakdown[fund].items(), key=lambda x: x[1], reverse=True)[
+                           :10]  # Top 10 clients per fund
         result.append({
             "fund": fund,
             "totalIncome": total_income,
             "clientBreakdown": [{"client": client, "income": income} for client, income in client_breakdown]
         })
+
+    # Sort funds by total income
+    result.sort(key=lambda x: x['totalIncome'], reverse=True)
     return result
 
 def main():

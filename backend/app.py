@@ -200,11 +200,11 @@ def get_funds():
         ]
         funds_data.sort(key=lambda x: x['income'], reverse=True)
 
-        top_funds_breakdown = calculate_top_funds_client_breakdown(daily_income)
+        funds_breakdown = calculate_all_funds_client_breakdown(daily_income)
 
         response_data = {
             "allFunds": funds_data,
-            "topFundsBreakdown": top_funds_breakdown
+            "fundsBreakdown": funds_breakdown
         }
 
         logger.info("Funds data processed successfully")
