@@ -143,7 +143,7 @@ def get_province_counts():
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing province count data'}), 500
 
-@app.route('/api/clients', methods=['GET'])
+@app.route('/api/clients')
 def get_clients():
     try:
         logger.info("Processing clients data")
@@ -185,6 +185,18 @@ def get_clients():
         logger.error(f"Error processing clients data: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing clients data'}), 500
+
+@app.route('/api/client_list')
+def get_client_list():
+    try:
+        logger.info("Processing client list data")
+        client_list = load_client_list('data/CLIENT_LIST.csv')
+        client_list_data = client_list.to_dict('records')
+        return jsonify(client_list_data)
+    except Exception as e:
+        logger.error(f"Error processing client list data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'An error occurred while processing client list data'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
