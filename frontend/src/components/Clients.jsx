@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Card, Row, Col, Spin, message } from 'antd';
 import { PieChart, Pie, Cell, ResponsiveContainer, Treemap, Tooltip, Legend } from 'recharts';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82ca9d', '#ffc658', '#8dd1e1', '#a4de6c', '#d0ed57'];
 const API_URL = process.env.REACT_APP_API_URL || 'https://your-backend-url.onrender.com';
 
 const Clients = ({ searchTerm }) => {
@@ -64,6 +64,8 @@ const Clients = ({ searchTerm }) => {
     }))
   ).sort((a, b) => b.value - a.value);
 
+  const formatValue = (value) => `¥${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const summaryColumns = [
     {
       title: 'Client Name',
@@ -74,7 +76,7 @@ const Clients = ({ searchTerm }) => {
       title: 'Cumulative Income Contribution',
       dataIndex: 'value',
       key: 'value',
-      render: (value) => `¥${value.toLocaleString()}`,
+      render: (value) => formatValue(value),
       sorter: (a, b) => b.value - a.value,
       defaultSortOrder: 'descend',
     },
@@ -95,7 +97,7 @@ const Clients = ({ searchTerm }) => {
       title: 'Value',
       dataIndex: 'value',
       key: 'value',
-      render: (value) => `¥${value.toLocaleString()}`,
+      render: (value) => formatValue(value),
       sorter: (a, b) => b.value - a.value,
       defaultSortOrder: 'descend',
     },
@@ -108,7 +110,7 @@ const Clients = ({ searchTerm }) => {
     <div>
       <h1>Client Distribution by Province</h1>
       <Card style={{ marginBottom: 20 }}>
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={500}>
           <Treemap
             data={provinceData}
             dataKey="value"
@@ -125,8 +127,8 @@ const Clients = ({ searchTerm }) => {
       <Table
         dataSource={allClientsData}
         columns={summaryColumns}
-        pagination={{ pageSize: 10 }}
-        scroll={{ y: 400 }}
+        pagination={{ pageSize: 15 }}
+        scroll={{ y: 600 }}
       />
 
       <h1>Clients Coverage by Sales Person</h1>
@@ -140,28 +142,28 @@ const Clients = ({ searchTerm }) => {
                 <Table
                   dataSource={salesPerson.clients}
                   columns={detailColumns}
-                  pagination={{ pageSize: 10 }}
-                  scroll={{ y: 400 }}
+                  pagination={{ pageSize: 15 }}
+                  scroll={{ y: 600 }}
                 />
               </Col>
               <Col span={12}>
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={600}>
                   <PieChart>
                     <Pie
                       data={salesPerson.clients}
                       cx="50%"
                       cy="50%"
                       labelLine={true}
-                      outerRadius={120}
+                      outerRadius={200}
                       fill="#8884d8"
                       dataKey="value"
-                      label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({name, percent}) => `${name} ${(percent * 100).toFixed(2)}%`}
                     >
                       {salesPerson.clients.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip formatter={(value) => formatValue(value)} />
                     <Legend layout="vertical" align="right" verticalAlign="middle" />
                   </PieChart>
                 </ResponsiveContainer>
