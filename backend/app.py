@@ -214,5 +214,46 @@ def get_funds():
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing funds data'}), 500
 
+
+@app.route('/api/forecast')
+def get_forecast():
+    try:
+        logger.info("Processing forecast data")
+
+        # Get the last day's total income
+        last_date = max(daily_income.keys())
+        last_day_income = sum(sum(client.values()) for client in daily_income[last_date].values())
+
+        # Create a date range from the start of our data to 2024-12-31
+        start_date = min(daily_income.keys())
+        end_date = datetime.date(2024, 12, 31)
+        date_range = pd.date_range(start=start_date, end=end_date)
+
+        # Create the forecast data
+        forecast_data = []
+        cumulative_income = 0
+        for date in date_range:
+            if date.date() <= last_date:
+                # Use actual data for past dates
+                daily_total = sum(sum(client.values()) for client in daily_income[date.date()].values())
+            else:
+                # Use last day's income for future dates
+                daily_total = last_day_income
+
+            cumulative_income += daily_total
+            forecast_data.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'income': daily_total,
+                'cumulativeIncome': cumulative_income,
+                'isActual': date.date() <= last_date
+            })
+
+        logger.info("Forecast data processed successfully")
+        return jsonify(forecast_data)
+    except Exception as e:
+        logger.error(f"Error processing forecast data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'An error occurred while processing forecast data'}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)

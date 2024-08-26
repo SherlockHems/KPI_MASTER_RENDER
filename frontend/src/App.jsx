@@ -12,6 +12,7 @@ import Dashboard from "./components/Dashboard";
 import Sales from "./components/Sales";
 import Clients from "./components/Clients";
 import Funds from "./components/Funds";
+import Forecast from "./components/Forecast";
 import './App.css';
 
 const { Header, Sider, Content } = Layout;
@@ -72,7 +73,7 @@ function App() {
               <Route path="/sales" element={<Sales searchTerm={searchTerm} />} />
               <Route path="/clients" element={<Clients searchTerm={searchTerm} />} />
               <Route path="/funds" element={<Funds searchTerm={searchTerm} />} />
-              <Route path="/forecast" element={<h1>Forecast Page</h1>} />
+              <Route path="/forecast" element={<Forecast />} />
             </Routes>
           </Content>
         </Layout>
