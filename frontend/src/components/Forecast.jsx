@@ -18,22 +18,22 @@ const Forecast = () => {
       const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/forecast`);
       setForecastData(response.data);
     } catch (e) {
-      setError(`Failed to fetch forecast data: ${e.message}`);
+      setError(`获取预测数据失败: ${e.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'CNY' }).format(value);
+    return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(value);
   };
 
   if (loading) return <Spin size="large" />;
-  if (error) return <Alert message="Error" description={error} type="error" showIcon />;
+  if (error) return <Alert message="错误" description={error} type="error" showIcon />;
 
   return (
     <div>
-      <h1>Income Forecast</h1>
+      <h1>收入预测</h1>
       <Card>
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={forecastData}>
@@ -48,7 +48,7 @@ const Forecast = () => {
               stroke="#8884d8"
               strokeWidth={2}
               dot={false}
-              name="Cumulative Income"
+              name="累计收入"
               strokeDasharray={(datum) => datum.isActual ? "0" : "5 5"}
             />
           </LineChart>
