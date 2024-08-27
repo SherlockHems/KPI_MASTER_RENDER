@@ -32,39 +32,39 @@ function Sales({ searchTerm }) {
         setSelectedSalesPerson(response.data.salesPersons[0].name);
       }
     } catch (e) {
-      console.error("Error fetching sales data:", e);
-      setError(`Error: ${e.message}`);
+      console.error("获取销售数据错误:", e);
+      setError(`错误: ${e.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   if (loading) return <Spin size="large" />;
-  if (error) return <Alert message="Error" description={error} type="error" showIcon />;
-  if (!salesData || salesData.salesPersons.length === 0) return <Alert message="No sales data available" type="warning" showIcon />;
+  if (error) return <Alert message="错误" description={error} type="error" showIcon />;
+  if (!salesData || salesData.salesPersons.length === 0) return <Alert message="没有可用的销售数据" type="warning" showIcon />;
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+    return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(value);
   };
 
   const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
 
   const salesPersonColumns = [
     {
-      title: 'Sales Person',
+      title: '销售人员',
       dataIndex: 'name',
       key: 'name',
       filteredValue: [searchTerm],
       onFilter: (value, record) => record.name.toLowerCase().includes(value.toLowerCase()),
     },
     {
-      title: 'Total Clients',
+      title: '客户总数',
       dataIndex: 'totalClients',
       key: 'totalClients',
       sorter: (a, b) => a.totalClients - b.totalClients,
     },
     {
-      title: 'Total Income',
+      title: '总收入',
       dataIndex: 'cumulativeIncome',
       key: 'cumulativeIncome',
       render: (text) => formatCurrency(text),
@@ -110,7 +110,7 @@ function Sales({ searchTerm }) {
 
       return (
         <div style={{ backgroundColor: 'white', padding: '10px', border: '1px solid #ccc' }}>
-          <p>{`Date: ${new Date(label).toLocaleDateString()}`}</p>
+          <p>{`日期: ${new Date(label).toLocaleDateString()}`}</p>
           {sortedData.map((entry, index) => (
             <p key={`item-${index}`} style={{ color: entry.color }}>
               {`${entry.name}: ${formatCurrency(entry.value)}`}
@@ -166,7 +166,7 @@ function Sales({ searchTerm }) {
 
   const dailyIncomeColumns = [
     {
-      title: 'Date',
+      title: '日期',
       dataIndex: 'date',
       key: 'date',
     },
@@ -179,11 +179,11 @@ function Sales({ searchTerm }) {
 
   return (
     <div>
-      <h1>Sales Dashboard</h1>
+      <h1>销售仪表盘</h1>
 
       <Row gutter={16}>
         <Col span={12}>
-          <Card title="Cumulative Income Contribution by Sales Person">
+          <Card title="按销售人员累计收入贡献">
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={salesData.salesPersons}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -196,7 +196,7 @@ function Sales({ searchTerm }) {
           </Card>
         </Col>
         <Col span={12}>
-          <Card title="Sales Person Performance">
+          <Card title="销售人员业绩">
             <Table
               dataSource={salesData.salesPersons}
               columns={salesPersonColumns}
@@ -206,14 +206,14 @@ function Sales({ searchTerm }) {
         </Col>
       </Row>
 
-      <Card title="All Sales Persons Income Contribution" style={{ marginTop: 16 }}>
+      <Card title="所有销售人员收入贡献" style={{ marginTop: 16 }}>
         <Radio.Group
           value={contributionType}
           onChange={(e) => setContributionType(e.target.value)}
           style={{ marginBottom: 16 }}
         >
-          <Radio.Button value="cumulative">Cumulative</Radio.Button>
-          <Radio.Button value="daily">Daily</Radio.Button>
+          <Radio.Button value="cumulative">累计</Radio.Button>
+          <Radio.Button value="daily">每日</Radio.Button>
         </Radio.Group>
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={contributionType === 'cumulative' ? cumulativeData : salesData.dailyContribution}>
@@ -243,7 +243,7 @@ function Sales({ searchTerm }) {
         </ResponsiveContainer>
       </Card>
 
-      <Card title="Individual Sales Person Performance" style={{ marginTop: 16 }}>
+      <Card title="个人销售业绩" style={{ marginTop: 16 }}>
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col span={12}>
             <Select
@@ -261,24 +261,24 @@ function Sales({ searchTerm }) {
               value={breakdownType}
               onChange={(e) => setBreakdownType(e.target.value)}
             >
-              <Radio.Button value="daily">Daily</Radio.Button>
-              <Radio.Button value="cumulative">Cumulative</Radio.Button>
+              <Radio.Button value="daily">每日</Radio.Button>
+              <Radio.Button value="cumulative">累计</Radio.Button>
             </Radio.Group>
           </Col>
         </Row>
         <Row gutter={16}>
           <Col span={12}>
-            <h3>Breakdown by Clients</h3>
+            <h3>按客户细分</h3>
             {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'clients'))}
           </Col>
           <Col span={12}>
-            <h3>Breakdown by Funds</h3>
+            <h3>按基金细分</h3>
             {renderBreakdownChart(prepareIndividualData(salesData.individualPerformance[selectedSalesPerson], 'funds'))}
           </Col>
         </Row>
       </Card>
 
-      <Card title="Daily Income Contribution by Sales Person" style={{ marginTop: 16 }}>
+      <Card title="按销售人员每日收入贡献" style={{ marginTop: 16 }}>
         <Table
           dataSource={prepareDailyIncomeData()}
           columns={dailyIncomeColumns}
