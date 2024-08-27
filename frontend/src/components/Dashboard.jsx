@@ -22,18 +22,18 @@ function Dashboard() {
       const data = await response.json();
       setDashboardData(data);
     } catch (e) {
-      setError(`Failed to fetch dashboard data: ${e.message}`);
+      setError(`获取仪表盘数据失败: ${e.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   if (loading) return <Spin size="large" />;
-  if (error) return <Alert message="Error" description={error} type="error" showIcon />;
-  if (!dashboardData) return <Alert message="No data available" type="warning" showIcon />;
+  if (error) return <Alert message="错误" description={error} type="error" showIcon />;
+  if (!dashboardData) return <Alert message="没有可用数据" type="warning" showIcon />;
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+    return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(value);
   };
 
   return (
@@ -42,7 +42,7 @@ function Dashboard() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="Total Income"
+              title="总收入"
               value={dashboardData.total_income}
               prefix={<DollarOutlined />}
               formatter={formatCurrency}
@@ -52,7 +52,7 @@ function Dashboard() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="Total Clients"
+              title="客户总数"
               value={dashboardData.total_clients}
               prefix={<TeamOutlined />}
             />
@@ -61,7 +61,7 @@ function Dashboard() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="Total Funds"
+              title="基金总数"
               value={dashboardData.total_funds}
               prefix={<FundOutlined />}
             />
@@ -70,7 +70,7 @@ function Dashboard() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="Total Sales"
+              title="销售总数"
               value={dashboardData.total_sales}
               prefix={<ShoppingOutlined />}
             />
@@ -78,7 +78,7 @@ function Dashboard() {
         </Col>
       </Row>
       <Card style={{ marginTop: 16 }}>
-        <h2>Income Trend</h2>
+        <h2>收入趋势</h2>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={dashboardData.income_trend}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -86,7 +86,7 @@ function Dashboard() {
             <YAxis />
             <Tooltip formatter={formatCurrency} />
             <Legend />
-            <Line type="monotone" dataKey="income" stroke="#8884d8" activeDot={{ r: 8 }} />
+            <Line type="monotone" dataKey="income" name="收入" stroke="#8884d8" activeDot={{ r: 8 }} />
           </LineChart>
         </ResponsiveContainer>
       </Card>
