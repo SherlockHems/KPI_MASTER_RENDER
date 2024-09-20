@@ -687,8 +687,7 @@ def calculate_all_funds_client_breakdown(daily_income):
 
     result = []
     for fund, total_income in fund_income.items():
-        client_breakdown = sorted(fund_client_breakdown[fund].items(), key=lambda x: x[1], reverse=True)[
-                           :10]  # Top 10 clients per fund
+        client_breakdown = sorted(fund_client_breakdown[fund].items(), key=lambda x: x[1], reverse=True)[:10]  # Top 10 clients per fund
         result.append({
             "fund": fund,
             "totalIncome": total_income,
@@ -701,7 +700,7 @@ def calculate_all_funds_client_breakdown(daily_income):
 
 def main():
     start_date = datetime.date(2023, 12, 31)
-    end_date = datetime.date(2024, 6, 30)
+    end_date = datetime.date(2024, 8, 31)
 
     print("Loading initial holdings...")
     initial_holdings = load_initial_holdings('data/2023DEC.csv')

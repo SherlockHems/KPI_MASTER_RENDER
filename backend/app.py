@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Load data
 start_date = datetime.date(2023, 12, 31)
-end_date = datetime.date(2024, 6, 30)
+end_date = datetime.date(2024, 8, 31)
 initial_holdings = load_initial_holdings('data/2023DEC.csv')
 trades = load_trades('data/TRADES_LOG.csv')
 product_info = load_product_info('data/PRODUCT_INFO.csv')
