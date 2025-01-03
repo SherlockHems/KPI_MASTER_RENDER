@@ -19,6 +19,7 @@ from openpyxl.utils import get_column_letter
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from datetime import timedelta
+import logging
 
 # Existing functions (load_initial_holdings, load_trades, load_product_info, load_client_sales, etc.) remain the same
 
@@ -40,25 +41,33 @@ def clean_money_string(money_str):
 # 加载初始持仓
 def load_initial_holdings(filename, target_date='20231231'):
     holdings = {}
-    with open(filename, 'r', encoding='utf-8') as file:
-        csv_reader = csv.DictReader(file)
-        for row in csv_reader:
-            date = row.get('SHARES_DATE', '')  # Assume there's a date column
-            if date != target_date:
-                continue  # Skip rows that don't match the target date
+    encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
+    
+    for encoding in encodings:
+        try:
+            with open(filename, 'r', encoding=encoding) as file:
+                csv_reader = csv.DictReader(file)
+                for row in csv_reader:
+                    date = row.get('SHARES_DATE', '')  # Assume there's a date column
+                    if date != target_date:
+                        continue  # Skip rows that don't match the target date
 
-            client_name = row['CLIENT_NAME']
-            fund_name = row['FUND_NAME']
-            money_value = clean_money_string(row['MONEY_VALUE'])
+                    client_name = row['CLIENT_NAME']
+                    fund_name = row['FUND_NAME']
+                    money_value = clean_money_string(row['MONEY_VALUE'])
 
-            if client_name not in holdings:
-                holdings[client_name] = {}
-            if fund_name not in holdings[client_name]:
-                holdings[client_name][fund_name] = 0
-            holdings[client_name][fund_name] += money_value  # Sum up multiple holdings
+                    if client_name not in holdings:
+                        holdings[client_name] = {}
+                    if fund_name not in holdings[client_name]:
+                        holdings[client_name][fund_name] = 0
+                    holdings[client_name][fund_name] += money_value  # Sum up multiple holdings
 
-    print(f"Loaded initial holdings for {len(holdings)} clients as of {target_date}.")
-    return holdings
+                print(f"Loaded initial holdings for {len(holdings)} clients as of {target_date} using {encoding} encoding.")
+                return holdings
+        except UnicodeDecodeError:
+            continue
+    
+    raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
 
 # 加载交易记录
 def load_trades(filename):
@@ -175,15 +184,23 @@ def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
 # 加载产品信息
 def load_product_info(filename):
     product_info = {}
-    with open(filename, 'r', encoding='utf-8') as file:
-        csv_reader = csv.DictReader(file)
-        for row in csv_reader:
-            fund_name = row['FUND_NAME']
-            ma_fees_daily = float(row['MA_FEES_DAILY'])
-            product_info[fund_name] = ma_fees_daily
-
-    print(f"Loaded product info for {len(product_info)} funds.")
-    return product_info
+    encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
+    
+    for encoding in encodings:
+        try:
+            with open(filename, 'r', encoding=encoding) as file:
+                csv_reader = csv.DictReader(file)
+                for row in csv_reader:
+                    fund_name = row['FUND_NAME']
+                    ma_fees_daily = float(row['MA_FEES_DAILY'])
+                    product_info[fund_name] = ma_fees_daily
+                
+                print(f"Loaded product info for {len(product_info)} funds using {encoding} encoding.")
+                return product_info
+        except UnicodeDecodeError:
+            continue
+    
+    raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
 
 # 加载客户销售信息
 def load_client_sales(filename):
@@ -199,7 +216,8 @@ def load_client_sales(filename):
                     sales_person = row['SALES']
                     client_sales[client_name] = sales_person
 
-            print(f"Loaded sales info for {len(client_sales)} clients using {encoding} encoding.")
+            logging.info(f"Loaded sales info for {len(client_sales)} clients using {encoding} encoding.")
+            logging.info(f"Sample client_sales data: {list(client_sales.items())[:5]}")
             return client_sales
         except UnicodeDecodeError:
             continue
@@ -229,6 +247,8 @@ def calculate_daily_income(daily_holdings, product_info, client_sales):
         sales_income[date] = {}
         client_income[date] = {}
 
+        #logging.info(f"Processing date: {date}")
+
         for client, funds in daily_holdings.items():
             client_daily_income = {}
             for fund, holdings in funds.items():
@@ -237,9 +257,11 @@ def calculate_daily_income(daily_holdings, product_info, client_sales):
                         fund_income = holdings[date] * product_info[fund]
                         client_daily_income[fund] = fund_income
                     else:
-                        print(f"Warning: No product info for fund {fund}")
+                        #logging.warning(f"No product info for fund {fund} on {date}")
+                        pass
                 else:
-                    print(f"Warning: No holding data for {client} - {fund} on {date}")
+                    #logging.warning(f"No holding data for {client} - {fund} on {date}")
+                    pass
 
             daily_income[date][client] = client_daily_income
             client_income[date][client] = sum(client_daily_income.values())
@@ -249,7 +271,28 @@ def calculate_daily_income(daily_holdings, product_info, client_sales):
                 sales_income[date][sales_person] = 0
             sales_income[date][sales_person] += sum(client_daily_income.values())
 
-        print(f"Processed income for date: {date}")
+            # 添加调试信息
+            if sales_person == "Unknown":
+                logging.info(f"Unknown client on {date}: {client}")
+                logging.info(f"  Client income: {client_income[date][client]}")
+                logging.info(f"  Client funds: {client_daily_income}")
+
+        # 添加调试信息
+        if "Unknown" in sales_income[date]:
+            logging.info(f"Date: {date}, Unknown sales income: {sales_income[date]['Unknown']}")
+            unknown_clients = [client for client in daily_income[date] if client_sales.get(client) == "Unknown"]
+            logging.info(f"Unknown clients on {date}: {unknown_clients}")
+            for client in unknown_clients:
+                logging.info(f"  Client: {client}, Income: {client_income[date][client]}")
+                logging.info(f"  Client funds: {daily_income[date][client]}")
+
+
+    # 添加总收入计算和日志
+    total_income = sum(sum(day.values()) for day in sales_income.values())
+    logging.info(f"Total income: {total_income}")
+    for sales_person in set(sp for day in sales_income.values() for sp in day.keys()):
+        person_total = sum(day.get(sales_person, 0) for day in sales_income.values())
+        logging.info(f"Total income for {sales_person}: {person_total}")
 
     return daily_income, sales_income, client_income
 
@@ -495,7 +538,7 @@ def generate_excel_report(daily_income, sales_income, client_income, cumulative_
 
         headers = ["Date", "Daily Income", "Cumulative Income"]
         for col, header in enumerate(headers, start=1):
-            sheet.cell(row=3, column=col, value=header).font = Font(bold=True)
+            sheet.cell(row=row, column=col, value=header).font = Font(bold=True)
 
         row = 4
         for date in client_income.keys():
@@ -576,7 +619,7 @@ def generate_excel_report(daily_income, sales_income, client_income, cumulative_
 
         headers = ["Date", "Total Income", "Fund Breakdown"]
         for col, header in enumerate(headers, start=1):
-            sheet.cell(row=3, column=col, value=header).font = Font(bold=True)
+            sheet.cell(row=row, column=col, value=header).font = Font(bold=True)
 
         row = 4
         for date in client_income.keys():
@@ -727,13 +770,13 @@ def calculate_all_funds_client_breakdown(daily_income):
 
 def main():
     start_date = datetime.date(2023, 12, 31)
-    end_date = datetime.date(2024, 8, 31)
-
     print("Loading initial holdings...")
     initial_holdings = load_initial_holdings('data/2023DEC.csv')
 
     print("\nLoading trades...")
-    trades = load_trades('data/TRADES_LOG.csv')
+    trades, end_date = load_trades('data/TRADES_LOG.csv')
+    
+    print(f"\nData range: {start_date} to {end_date}")
 
     print("\nLoading product info...")
     product_info = load_product_info('data/PRODUCT_INFO.csv')
@@ -799,7 +842,7 @@ def get_top_clients_and_funds(daily_income, client_sales):
 
             client_income = sum(funds.values())
             sales_person_clients[sales_person][client] = sales_person_clients[sales_person].get(client,
-                                                                                                0) + client_income
+                                                                                                    0) + client_income
 
             for fund, income in funds.items():
                 sales_person_funds[sales_person][fund] = sales_person_funds[sales_person].get(fund, 0) + income
