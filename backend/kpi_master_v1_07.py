@@ -72,6 +72,7 @@ def load_initial_holdings(filename, target_date='20231231'):
 # 加载交易记录
 def load_trades(filename):
     trades = {}
+<<<<<<< HEAD
     encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
     
     for encoding in encodings:
@@ -96,26 +97,34 @@ def load_trades(filename):
         client_name = row['CLIENT_NAME']
         fund_name = row['FUND_NAME']
         money_changed = clean_money_string(row['MONEY_CHANGED'])
+=======
+    with open(filename, 'r', encoding='utf-8') as file:
+        csv_reader = csv.DictReader(file)
+        for row in csv_reader:
+            try:
+                date = datetime.datetime.strptime(row['CONFIRMED_DATE'], '%Y%m%d').date()
+                client_name = row['CLIENT_NAME']
+                fund_name = row['FUND_NAME']
+                money_changed = clean_money_string(row['MONEY_CHANGED'])
+>>>>>>> parent of b387bbd (fix)
 
-        if client_name not in trades:
-            trades[client_name] = {}
-        if fund_name not in trades[client_name]:
-            trades[client_name][fund_name] = {}
-        if date not in trades[client_name][fund_name]:
-            trades[client_name][fund_name][date] = []
-        trades[client_name][fund_name][date].append(money_changed)
+                if client_name not in trades:
+                    trades[client_name] = {}
+                if fund_name not in trades[client_name]:
+                    trades[client_name][fund_name] = {}
+                trades[client_name][fund_name][date] = money_changed
+            except ValueError as e:
+                print(f"Error processing row: {row}")
+                print(f"Error message: {str(e)}")
+                continue  # Skip this row and continue with the next
 
-        # 添加调试信息
-        if date in [datetime.date(2024, 9, 17), datetime.date(2024, 9, 18)]:
-            logging.info(f"Trade on {date}: Client: {client_name}, Fund: {fund_name}, Amount: {money_changed}")
-
-    return trades, latest_date
+    print(f"Loaded trades for {len(trades)} clients.")
+    return trades
 
 # 计算每日持仓
 def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
     holdings = {}
     dates = create_date_list(start_date, end_date)
-    jilin_bank_info = []  # 用于收集吉林银行的信息
 
     # Initialize with initial holdings
     for client, funds in initial_holdings.items():
@@ -128,61 +137,47 @@ def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
 
     print("Initialized holdings with initial values.")
 
-    # 添加吉林银行的初始持仓信息
-    if '吉林银行' in holdings:
-        jilin_bank_info.append(f"吉林银行的初始持仓: {holdings['吉林银行']}")
-
     # Calculate daily holdings
     for date in dates[1:]:  # Start from second date
         print(f"\nProcessing date: {date}")
 
-        # Process all clients and funds in trades
-        for client in set(list(holdings.keys()) + list(trades.keys())):
-            if client not in holdings:
-                holdings[client] = {}
-            
-            all_funds = set(list(holdings[client].keys()) + (list(trades[client].keys()) if client in trades else []))
-            
-            for fund in all_funds:
-                if fund not in holdings[client]:
-                    holdings[client][fund] = {}
-                
+        # Process existing clients and funds
+        for client in holdings:
+            for fund in holdings[client]:
                 prev_date = date - datetime.timedelta(days=1)
-                prev_amount = holdings[client][fund].get(prev_date, 0)
+                prev_amount = holdings[client][fund][prev_date]
 
                 new_amount = prev_amount
                 if client in trades and fund in trades[client] and date in trades[client][fund]:
-                    # 处理同一天同一基金的多笔交易
-                    daily_trades = trades[client][fund][date]
-                    if isinstance(daily_trades, list):
-                        for trade_amount in daily_trades:
-                            new_amount += trade_amount
-                            print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f} (Trade: {trade_amount:.2f})")
-                    else:
-                        trade_amount = daily_trades
-                        new_amount += trade_amount
-                        print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f} (Trade: {trade_amount:.2f})")
+                    trade_amount = trades[client][fund][date]
+                    new_amount = prev_amount + trade_amount
+                    print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f}")
 
                 holdings[client][fund][date] = new_amount
 
-                # 添加吉林银行的持仓变化信息
-                if client == '吉林银行':
-                    jilin_bank_info.append(f"吉林银行 - {fund} 在 {date} 的持仓变化: {prev_amount:.2f} -> {new_amount:.2f}")
+        # Check for new clients or funds in trades
+        for client in trades:
+            for fund in trades[client]:
+                if date in trades[client][fund]:
+                    if client not in holdings:
+                        holdings[client] = {}
+                        print(f"  New client: {client}")
+                    if fund not in holdings[client]:
+                        holdings[client][fund] = {}
+                        print(f"  New fund for {client}: {fund}")
+
+                    if date not in holdings[client][fund]:
+                        prev_date = date - datetime.timedelta(days=1)
+                        prev_amount = holdings[client][fund].get(prev_date, 0)
+                        trade_amount = trades[client][fund][date]
+                        new_amount = prev_amount + trade_amount
+                        holdings[client][fund][date] = new_amount
+                        print(f"  New trade - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f}")
 
         # Print summary for the day
         client_count = len(holdings)
         fund_count = sum(len(funds) for funds in holdings.values())
         print(f"End of day summary - Clients: {client_count}, Funds: {fund_count}")
-
-        # 添加吉林银行的每日总持仓信息
-        if '吉林银行' in holdings:
-            total_holding = sum(holdings['吉林银行'][fund].get(date, 0) for fund in holdings['吉林银行'])
-            jilin_bank_info.append(f"吉林银行在 {date} 的总持仓: {total_holding:.2f}")
-
-    # 在最后打印所有吉林银行的信息
-    print("\n\n吉林银行信息汇总:")
-    for info in jilin_bank_info:
-        print(info)
 
     return holdings
 

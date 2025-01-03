@@ -21,10 +21,16 @@ logger = logging.getLogger(__name__)
 # Load data
 start_date = datetime.date(2023, 12, 31)
 initial_holdings = load_initial_holdings('data/2023DEC.csv')
-trades, end_date = load_trades('data/TRADES_LOG.csv')  # 使用修改后的load_trades函数
+trades = load_trades('data/TRADES_LOG.csv')
 product_info = load_product_info('data/PRODUCT_INFO.csv')
 client_sales = load_client_sales('data/CLIENT_LIST.csv')
 
+# Get the latest trade date as end_date
+end_date = max(
+    max(fund_dates.keys())
+    for client_trades in trades.values()
+    for fund_dates in client_trades.values()
+)
 logger.info(f"Dynamically determined end_date as {end_date} based on latest trade")
 
 # Calculate data
