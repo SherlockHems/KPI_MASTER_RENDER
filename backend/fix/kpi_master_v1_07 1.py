@@ -19,6 +19,7 @@ from openpyxl.utils import get_column_letter
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from datetime import timedelta
+import logging
 
 # Existing functions (load_initial_holdings, load_trades, load_product_info, load_client_sales, etc.) remain the same
 
@@ -111,85 +112,74 @@ def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
     dates = create_date_list(start_date, end_date)
     jilin_bank_info = []  # 用于收集吉林银行的信息
 
-    try:
-        # Initialize with initial holdings
-        print(f"Initializing holdings from {start_date} to {end_date}")
-        for client, funds in initial_holdings.items():
+    # Initialize with initial holdings
+    for client, funds in initial_holdings.items():
+        if client not in holdings:
+            holdings[client] = {}
+        for fund, amount in funds.items():
+            if fund not in holdings[client]:
+                holdings[client][fund] = {}
+            holdings[client][fund][start_date] = amount
+
+    print("Initialized holdings with initial values.")
+
+    # 添加吉林银行的初始持仓信息
+    if '吉林银行' in holdings:
+        jilin_bank_info.append(f"吉林银行的初始持仓: {holdings['吉林银行']}")
+
+    # Calculate daily holdings
+    for date in dates[1:]:  # Start from second date
+        print(f"\nProcessing date: {date}")
+
+        # Process all clients and funds in trades
+        for client in set(list(holdings.keys()) + list(trades.keys())):
             if client not in holdings:
                 holdings[client] = {}
-            for fund, amount in funds.items():
+            
+            all_funds = set(list(holdings[client].keys()) + (list(trades[client].keys()) if client in trades else []))
+            
+            for fund in all_funds:
                 if fund not in holdings[client]:
                     holdings[client][fund] = {}
-                holdings[client][fund][start_date] = amount
-                if client == '吉林银行':
-                    jilin_bank_info.append(f"吉林银行初始持仓 - {fund}: {amount:.2f}")
-
-        print(f"Initialized holdings with {len(holdings)} clients")
-
-        # Calculate daily holdings
-        for date in dates[1:]:  # Start from second date
-            print(f"\nProcessing date: {date}")
-            
-            # Process all clients and funds in trades
-            for client in set(list(holdings.keys()) + list(trades.keys())):
-                if client not in holdings:
-                    holdings[client] = {}
-                    print(f"  Adding new client: {client}")
                 
-                all_funds = set()
-                if client in holdings:
-                    all_funds.update(holdings[client].keys())
-                if client in trades:
-                    all_funds.update(trades[client].keys())
-                
-                for fund in all_funds:
-                    if fund not in holdings[client]:
-                        holdings[client][fund] = {}
-                        print(f"  Adding new fund for {client}: {fund}")
-                    
-                    prev_date = date - datetime.timedelta(days=1)
-                    prev_amount = holdings[client][fund].get(prev_date, 0)
-                    new_amount = prev_amount
+                prev_date = date - datetime.timedelta(days=1)
+                prev_amount = holdings[client][fund].get(prev_date, 0)
 
-                    if client in trades and fund in trades[client] and date in trades[client][fund]:
-                        # 处理同一天同一基金的多笔交易
-                        daily_trades = trades[client][fund][date]
-                        if isinstance(daily_trades, list):
-                            for trade_amount in daily_trades:
-                                new_amount += trade_amount
-                                print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f} (Trade: {trade_amount:.2f})")
-                        else:
-                            trade_amount = daily_trades
+                new_amount = prev_amount
+                if client in trades and fund in trades[client] and date in trades[client][fund]:
+                    # 处理同一天同一基金的多笔交易
+                    daily_trades = trades[client][fund][date]
+                    if isinstance(daily_trades, list):
+                        for trade_amount in daily_trades:
                             new_amount += trade_amount
                             print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f} (Trade: {trade_amount:.2f})")
+                    else:
+                        trade_amount = daily_trades
+                        new_amount += trade_amount
+                        print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f} (Trade: {trade_amount:.2f})")
 
-                    holdings[client][fund][date] = new_amount
+                holdings[client][fund][date] = new_amount
 
-                    # 记录吉林银行的持仓变化
-                    if client == '吉林银行' and new_amount != prev_amount:
-                        jilin_bank_info.append(f"吉林银行 - {fund} 在 {date} 的持仓变化: {prev_amount:.2f} -> {new_amount:.2f}")
+                # 添加吉林银行的持仓变化信息
+                if client == '吉林银行':
+                    jilin_bank_info.append(f"吉林银行 - {fund} 在 {date} 的持仓变化: {prev_amount:.2f} -> {new_amount:.2f}")
 
-            # Print summary for the day
-            client_count = len(holdings)
-            fund_count = sum(len(funds) for funds in holdings.values())
-            print(f"End of day summary - Clients: {client_count}, Funds: {fund_count}")
+        # Print summary for the day
+        client_count = len(holdings)
+        fund_count = sum(len(funds) for funds in holdings.values())
+        print(f"End of day summary - Clients: {client_count}, Funds: {fund_count}")
 
-            # 记录吉林银行的每日总持仓
-            if '吉林银行' in holdings:
-                total_holding = sum(holdings['吉林银行'][fund].get(date, 0) for fund in holdings['吉林银行'])
-                jilin_bank_info.append(f"吉林银行在 {date} 的总持仓: {total_holding:.2f}")
+        # 添加吉林银行的每日总持仓信息
+        if '吉林银行' in holdings:
+            total_holding = sum(holdings['吉林银行'][fund].get(date, 0) for fund in holdings['吉林银行'])
+            jilin_bank_info.append(f"吉林银行在 {date} 的总持仓: {total_holding:.2f}")
 
-        # 在最后打印所有吉林银行的信息
-        if jilin_bank_info:
-            print("\n吉林银行持仓信息汇总:")
-            for info in jilin_bank_info:
-                print(info)
+    # 在最后打印所有吉林银行的信息
+    print("\n\n吉林银行信息汇总:")
+    for info in jilin_bank_info:
+        print(info)
 
-        return holdings
-
-    except Exception as e:
-        print(f"Error in calculate_daily_holdings: {str(e)}")
-        raise
+    return holdings
 
 # 加载产品信息
 def load_product_info(filename):
@@ -226,7 +216,8 @@ def load_client_sales(filename):
                     sales_person = row['SALES']
                     client_sales[client_name] = sales_person
 
-            print(f"Loaded sales info for {len(client_sales)} clients using {encoding} encoding.")
+            logging.info(f"Loaded sales info for {len(client_sales)} clients using {encoding} encoding.")
+            logging.info(f"Sample client_sales data: {list(client_sales.items())[:5]}")
             return client_sales
         except UnicodeDecodeError:
             continue
@@ -241,81 +232,69 @@ def load_client_sales(filename):
 
 
 def calculate_daily_income(daily_holdings, product_info, client_sales):
-    try:
-        daily_income = {}
-        sales_income = {}
-        client_income = {}
+    daily_income = {}
+    sales_income = {}
+    client_income = {}
 
-        # 收集所有日期
-        print("Collecting all dates from holdings...")
-        all_dates = set()
-        for client_funds in daily_holdings.values():
-            for fund_holdings in client_funds.values():
-                all_dates.update(fund_holdings.keys())
-        dates = sorted(list(all_dates))
-        print(f"Found {len(dates)} unique dates from {dates[0]} to {dates[-1]}")
+    all_dates = set()
+    for client_funds in daily_holdings.values():
+        for fund_holdings in client_funds.values():
+            all_dates.update(fund_holdings.keys())
+    dates = sorted(list(all_dates))
 
-        # 处理每个日期的收入
-        for date in dates:
-            print(f"\nProcessing income for date: {date}")
-            daily_income[date] = {}
-            sales_income[date] = {}
-            client_income[date] = {}
-            
-            missing_product_info = set()  # 记录缺失产品信息
-            missing_holdings = set()      # 记录缺失持仓信息
+    for date in dates:
+        daily_income[date] = {}
+        sales_income[date] = {}
+        client_income[date] = {}
 
-            # 处理每个客户的收入
-            for client, funds in daily_holdings.items():
-                client_daily_income = {}
-                for fund, holdings in funds.items():
-                    if date in holdings:
-                        if fund in product_info:
-                            fund_income = holdings[date] * product_info[fund]
-                            client_daily_income[fund] = fund_income
-                        else:
-                            missing_product_info.add(fund)
-                            print(f"Warning: No product info for fund {fund}")
+        #logging.info(f"Processing date: {date}")
+
+        for client, funds in daily_holdings.items():
+            client_daily_income = {}
+            for fund, holdings in funds.items():
+                if date in holdings:
+                    if fund in product_info:
+                        fund_income = holdings[date] * product_info[fund]
+                        client_daily_income[fund] = fund_income
                     else:
-                        missing_holdings.add((client, fund))
-                        print(f"Warning: No holding data for {client} - {fund} on {date}")
+                        #logging.warning(f"No product info for fund {fund} on {date}")
+                        pass
+                else:
+                    #logging.warning(f"No holding data for {client} - {fund} on {date}")
+                    pass
 
-                daily_income[date][client] = client_daily_income
-                client_income[date][client] = sum(client_daily_income.values())
+            daily_income[date][client] = client_daily_income
+            client_income[date][client] = sum(client_daily_income.values())
 
-                # 处理销售人员收入
-                sales_person = client_sales.get(client, "Unknown")
-                if sales_person not in sales_income[date]:
-                    sales_income[date][sales_person] = 0
-                sales_income[date][sales_person] += sum(client_daily_income.values())
+            sales_person = client_sales.get(client, "Unknown")
+            if sales_person not in sales_income[date]:
+                sales_income[date][sales_person] = 0
+            sales_income[date][sales_person] += sum(client_daily_income.values())
 
-            # 打印每日统计信息
-            total_income = sum(sum(client_funds.values()) for client_funds in daily_income[date].values())
-            total_clients = len(daily_income[date])
-            total_sales = len(sales_income[date])
-            print(f"Date {date} summary:")
-            print(f"  Total income: {total_income:.2f}")
-            print(f"  Total clients: {total_clients}")
-            print(f"  Total sales persons: {total_sales}")
-            if missing_product_info:
-                print(f"  Missing product info for funds: {', '.join(missing_product_info)}")
-            if missing_holdings:
-                print(f"  Missing holdings for {len(missing_holdings)} client-fund pairs")
+            # 添加调试信息
+            if sales_person == "Unknown":
+                logging.info(f"Unknown client on {date}: {client}")
+                logging.info(f"  Client income: {client_income[date][client]}")
+                logging.info(f"  Client funds: {client_daily_income}")
 
-        # 打印总体统计信息
-        print("\nOverall statistics:")
-        total_dates = len(dates)
-        total_unique_clients = len(set(client for date_data in daily_income.values() for client in date_data.keys()))
-        total_unique_sales = len(set(sales for date_data in sales_income.values() for sales in date_data.keys()))
-        print(f"Processed {total_dates} dates")
-        print(f"Total unique clients: {total_unique_clients}")
-        print(f"Total unique sales persons: {total_unique_sales}")
+        # 添加调试信息
+        if "Unknown" in sales_income[date]:
+            logging.info(f"Date: {date}, Unknown sales income: {sales_income[date]['Unknown']}")
+            unknown_clients = [client for client in daily_income[date] if client_sales.get(client) == "Unknown"]
+            logging.info(f"Unknown clients on {date}: {unknown_clients}")
+            for client in unknown_clients:
+                logging.info(f"  Client: {client}, Income: {client_income[date][client]}")
+                logging.info(f"  Client funds: {daily_income[date][client]}")
 
-        return daily_income, sales_income, client_income
 
-    except Exception as e:
-        print(f"Error in calculate_daily_income: {str(e)}")
-        raise
+    # 添加总收入计算和日志
+    total_income = sum(sum(day.values()) for day in sales_income.values())
+    logging.info(f"Total income: {total_income}")
+    for sales_person in set(sp for day in sales_income.values() for sp in day.keys()):
+        person_total = sum(day.get(sales_person, 0) for day in sales_income.values())
+        logging.info(f"Total income for {sales_person}: {person_total}")
+
+    return daily_income, sales_income, client_income
 
 def calculate_cumulative_income(daily_income):
     cumulative_income = {}
@@ -559,7 +538,7 @@ def generate_excel_report(daily_income, sales_income, client_income, cumulative_
 
         headers = ["Date", "Daily Income", "Cumulative Income"]
         for col, header in enumerate(headers, start=1):
-            sheet.cell(row=3, column=col, value=header).font = Font(bold=True)
+            sheet.cell(row=row, column=col, value=header).font = Font(bold=True)
 
         row = 4
         for date in client_income.keys():
@@ -640,7 +619,7 @@ def generate_excel_report(daily_income, sales_income, client_income, cumulative_
 
         headers = ["Date", "Total Income", "Fund Breakdown"]
         for col, header in enumerate(headers, start=1):
-            sheet.cell(row=3, column=col, value=header).font = Font(bold=True)
+            sheet.cell(row=row, column=col, value=header).font = Font(bold=True)
 
         row = 4
         for date in client_income.keys():
@@ -791,13 +770,13 @@ def calculate_all_funds_client_breakdown(daily_income):
 
 def main():
     start_date = datetime.date(2023, 12, 31)
-    end_date = datetime.date(2024, 8, 31)
-
     print("Loading initial holdings...")
     initial_holdings = load_initial_holdings('data/2023DEC.csv')
 
     print("\nLoading trades...")
-    trades = load_trades('data/TRADES_LOG.csv')
+    trades, end_date = load_trades('data/TRADES_LOG.csv')
+    
+    print(f"\nData range: {start_date} to {end_date}")
 
     print("\nLoading product info...")
     product_info = load_product_info('data/PRODUCT_INFO.csv')
@@ -863,7 +842,7 @@ def get_top_clients_and_funds(daily_income, client_sales):
 
             client_income = sum(funds.values())
             sales_person_clients[sales_person][client] = sales_person_clients[sales_person].get(client,
-                                                                                                0) + client_income
+                                                                                                    0) + client_income
 
             for fund, income in funds.items():
                 sales_person_funds[sales_person][fund] = sales_person_funds[sales_person].get(fund, 0) + income
