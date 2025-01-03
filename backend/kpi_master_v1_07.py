@@ -14,6 +14,7 @@ import datetime
 import csv
 import re
 import openpyxl
+import logging
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -40,25 +41,33 @@ def clean_money_string(money_str):
 # 加载初始持仓
 def load_initial_holdings(filename, target_date='20231231'):
     holdings = {}
-    with open(filename, 'r', encoding='utf-8') as file:
-        csv_reader = csv.DictReader(file)
-        for row in csv_reader:
-            date = row.get('SHARES_DATE', '')  # Assume there's a date column
-            if date != target_date:
-                continue  # Skip rows that don't match the target date
+    encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
+    
+    for encoding in encodings:
+        try:
+            with open(filename, 'r', encoding=encoding) as file:
+                csv_reader = csv.DictReader(file)
+                for row in csv_reader:
+                    date = row.get('SHARES_DATE', '')  # Assume there's a date column
+                    if date != target_date:
+                        continue  # Skip rows that don't match the target date
 
-            client_name = row['CLIENT_NAME']
-            fund_name = row['FUND_NAME']
-            money_value = clean_money_string(row['MONEY_VALUE'])
+                    client_name = row['CLIENT_NAME']
+                    fund_name = row['FUND_NAME']
+                    money_value = clean_money_string(row['MONEY_VALUE'])
 
-            if client_name not in holdings:
-                holdings[client_name] = {}
-            if fund_name not in holdings[client_name]:
-                holdings[client_name][fund_name] = 0
-            holdings[client_name][fund_name] += money_value  # Sum up multiple holdings
+                    if client_name not in holdings:
+                        holdings[client_name] = {}
+                    if fund_name not in holdings[client_name]:
+                        holdings[client_name][fund_name] = 0
+                    holdings[client_name][fund_name] += money_value  # Sum up multiple holdings
 
-    print(f"Loaded initial holdings for {len(holdings)} clients as of {target_date}.")
-    return holdings
+                print(f"Loaded initial holdings for {len(holdings)} clients as of {target_date} using {encoding} encoding.")
+                return holdings
+        except UnicodeDecodeError:
+            continue
+    
+    raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
 
 # 加载交易记录
 def load_trades(filename):
@@ -67,14 +76,19 @@ def load_trades(filename):
     
     for encoding in encodings:
         try:
+            # 读取CSV文件并过滤掉包含git合并冲突标记的行
             df = pd.read_csv(filename, encoding=encoding)
+            df = df[~df['CONFIRMED_DATE'].str.contains('<|>|=', na=False)]
+            # 确保CONFIRMED_DATE列只包含数字
+            df = df[df['CONFIRMED_DATE'].str.match(r'^\d+$', na=False)]
             break
         except UnicodeDecodeError:
             continue
     else:
         raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
+
+    # 转换日期格式
     df['CONFIRMED_DATE'] = pd.to_datetime(df['CONFIRMED_DATE'], format='%Y%m%d')
-    
     latest_date = df['CONFIRMED_DATE'].max().date()
     
     for _, row in df.iterrows():
@@ -175,15 +189,23 @@ def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
 # 加载产品信息
 def load_product_info(filename):
     product_info = {}
-    with open(filename, 'r', encoding='utf-8') as file:
-        csv_reader = csv.DictReader(file)
-        for row in csv_reader:
-            fund_name = row['FUND_NAME']
-            ma_fees_daily = float(row['MA_FEES_DAILY'])
-            product_info[fund_name] = ma_fees_daily
+    encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
+    
+    for encoding in encodings:
+        try:
+            with open(filename, 'r', encoding=encoding) as file:
+                csv_reader = csv.DictReader(file)
+                for row in csv_reader:
+                    fund_name = row['FUND_NAME']
+                    ma_fees_daily = float(row['MA_FEES_DAILY'])
+                    product_info[fund_name] = ma_fees_daily
 
-    print(f"Loaded product info for {len(product_info)} funds.")
-    return product_info
+                print(f"Loaded product info for {len(product_info)} funds using {encoding} encoding.")
+                return product_info
+        except UnicodeDecodeError:
+            continue
+    
+    raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
 
 # 加载客户销售信息
 def load_client_sales(filename):
@@ -727,13 +749,13 @@ def calculate_all_funds_client_breakdown(daily_income):
 
 def main():
     start_date = datetime.date(2023, 12, 31)
-    end_date = datetime.date(2024, 8, 31)
 
     print("Loading initial holdings...")
     initial_holdings = load_initial_holdings('data/2023DEC.csv')
 
     print("\nLoading trades...")
-    trades = load_trades('data/TRADES_LOG.csv')
+    trades, end_date = load_trades('data/TRADES_LOG.csv')
+    print(f"\nData range: {start_date} to {end_date}")
 
     print("\nLoading product info...")
     product_info = load_product_info('data/PRODUCT_INFO.csv')
