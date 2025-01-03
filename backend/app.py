@@ -19,13 +19,28 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Load data
-start_date = datetime.date(2023, 12, 31)
-initial_holdings = load_initial_holdings('data/2023DEC.csv')
-trades, end_date = load_trades('data/TRADES_LOG.csv')  # 使用修改后的load_trades函数
-product_info = load_product_info('data/PRODUCT_INFO.csv')
-client_sales = load_client_sales('data/CLIENT_LIST.csv')
-
-logger.info(f"Dynamically determined end_date as {end_date} based on latest trade")
+try:
+    start_date = datetime.date(2023, 12, 31)
+    end_date = datetime.date(2024, 8, 31)  # 设置固定的结束日期
+    
+    logger.info("Loading initial holdings...")
+    initial_holdings = load_initial_holdings('data/2023DEC.csv')
+    
+    logger.info("Loading trades...")
+    trades, latest_trade_date = load_trades('data/TRADES_LOG.csv')
+    logger.info(f"Latest trade date: {latest_trade_date}")
+    
+    logger.info("Loading product info...")
+    product_info = load_product_info('data/PRODUCT_INFO.csv')
+    
+    logger.info("Loading client sales info...")
+    client_sales = load_client_sales('data/CLIENT_LIST.csv')
+    
+    logger.info(f"Data loading complete. Date range: {start_date} to {end_date}")
+except Exception as e:
+    logger.error(f"Error loading data: {str(e)}")
+    logger.error(traceback.format_exc())
+    raise
 
 # Calculate data
 daily_holdings = calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
