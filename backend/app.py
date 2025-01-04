@@ -19,28 +19,19 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Load data
-try:
-    start_date = datetime.date(2023, 12, 31)
-    end_date = datetime.date(2024, 8, 31)  # 设置固定的结束日期
-    
-    logger.info("Loading initial holdings...")
-    initial_holdings = load_initial_holdings('data/2023DEC.csv')
-    
-    logger.info("Loading trades...")
-    trades, latest_trade_date = load_trades('data/TRADES_LOG.csv')
-    logger.info(f"Latest trade date: {latest_trade_date}")
-    
-    logger.info("Loading product info...")
-    product_info = load_product_info('data/PRODUCT_INFO.csv')
-    
-    logger.info("Loading client sales info...")
-    client_sales = load_client_sales('data/CLIENT_LIST.csv')
-    
-    logger.info(f"Data loading complete. Date range: {start_date} to {end_date}")
-except Exception as e:
-    logger.error(f"Error loading data: {str(e)}")
-    logger.error(traceback.format_exc())
-    raise
+start_date = datetime.date(2023, 12, 31)
+initial_holdings = load_initial_holdings('data/2023DEC.csv')
+trades = load_trades('data/TRADES_LOG.csv')
+product_info = load_product_info('data/PRODUCT_INFO.csv')
+client_sales = load_client_sales('data/CLIENT_LIST.csv')
+
+# Get the latest trade date as end_date
+end_date = max(
+    max(fund_dates.keys())
+    for client_trades in trades.values()
+    for fund_dates in client_trades.values()
+)
+logger.info(f"Dynamically determined end_date as {end_date} based on latest trade")
 
 # Calculate data
 daily_holdings = calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
@@ -240,10 +231,10 @@ def get_forecast():
         last_date = max(daily_income.keys())
         last_day_income = sum(sum(client.values()) for client in daily_income[last_date].values())
 
-        # Create a date range from the start of our data to end_date plus 6 months
+        # Create a date range from the start of our data to 2024-12-31
         start_date = min(daily_income.keys())
-        forecast_end_date = end_date + datetime.timedelta(days=180)  # Add 6 months for forecast
-        date_range = pd.date_range(start=start_date, end=forecast_end_date)
+        end_date = datetime.date(2024, 12, 31)
+        date_range = pd.date_range(start=start_date, end=end_date)
 
         # Create the forecast data
         forecast_data = []
