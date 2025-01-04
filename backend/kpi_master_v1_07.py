@@ -75,35 +75,70 @@ def load_trades(filename):
     
     for encoding in encodings:
         try:
+            print(f"Attempting to read {filename} with {encoding} encoding...")
             df = pd.read_csv(filename, encoding=encoding)
-            break
+            
+            # 数据清洗：移除无效行
+            df = df.dropna(subset=['CONFIRMED_DATE', 'CLIENT_NAME', 'FUND_NAME', 'MONEY_CHANGED'])
+            
+            # 验证日期格式
+            def is_valid_date(date_str):
+                try:
+                    if not isinstance(date_str, str):
+                        return False
+                    if len(date_str) != 8:
+                        return False
+                    if not date_str.isdigit():
+                        return False
+                    return True
+                except:
+                    return False
+
+            # 过滤无效日期
+            valid_dates = df['CONFIRMED_DATE'].apply(is_valid_date)
+            invalid_dates = df[~valid_dates]['CONFIRMED_DATE'].unique()
+            if len(invalid_dates) > 0:
+                print(f"Warning: Found invalid dates: {invalid_dates}")
+                df = df[valid_dates]
+
+            print(f"Converting dates to datetime format...")
+            df['CONFIRMED_DATE'] = pd.to_datetime(df['CONFIRMED_DATE'], format='%Y%m%d')
+            
+            latest_date = df['CONFIRMED_DATE'].max().date()
+            print(f"Latest date in trades: {latest_date}")
+            
+            # 处理交易数据
+            print("Processing trade records...")
+            for _, row in df.iterrows():
+                try:
+                    date = row['CONFIRMED_DATE'].date()
+                    client_name = row['CLIENT_NAME']
+                    fund_name = row['FUND_NAME']
+                    money_changed = clean_money_string(str(row['MONEY_CHANGED']))
+
+                    if client_name not in trades:
+                        trades[client_name] = {}
+                    if fund_name not in trades[client_name]:
+                        trades[client_name][fund_name] = {}
+                    if date not in trades[client_name][fund_name]:
+                        trades[client_name][fund_name][date] = []
+                    trades[client_name][fund_name][date].append(money_changed)
+
+                except Exception as e:
+                    print(f"Warning: Error processing row: {row}")
+                    print(f"Error details: {str(e)}")
+                    continue
+
+            print(f"Successfully loaded {len(df)} trade records for {len(trades)} clients")
+            return trades, latest_date
+
         except UnicodeDecodeError:
             continue
-    else:
-        raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
-    df['CONFIRMED_DATE'] = pd.to_datetime(df['CONFIRMED_DATE'], format='%Y%m%d')
+        except Exception as e:
+            print(f"Error reading file with {encoding} encoding: {str(e)}")
+            continue
     
-    latest_date = df['CONFIRMED_DATE'].max().date()
-    
-    for _, row in df.iterrows():
-        date = row['CONFIRMED_DATE'].date()
-        client_name = row['CLIENT_NAME']
-        fund_name = row['FUND_NAME']
-        money_changed = clean_money_string(row['MONEY_CHANGED'])
-
-        if client_name not in trades:
-            trades[client_name] = {}
-        if fund_name not in trades[client_name]:
-            trades[client_name][fund_name] = {}
-        if date not in trades[client_name][fund_name]:
-            trades[client_name][fund_name][date] = []
-        trades[client_name][fund_name][date].append(money_changed)
-
-        # 添加调试信息
-        if date in [datetime.date(2024, 9, 17), datetime.date(2024, 9, 18)]:
-            logging.info(f"Trade on {date}: Client: {client_name}, Fund: {fund_name}, Amount: {money_changed}")
-
-    return trades, latest_date
+    raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
 
 # 计算每日持仓
 def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
@@ -420,27 +455,42 @@ def generate_forecasts(daily_income, product_info, daily_holdings, trades, end_d
     last_known_date = max(daily_income.keys())
     start_date = last_known_date + timedelta(days=1)
 
+    # 确保end_date是datetime.date类型
+    if isinstance(end_date, str):
+        end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
+    elif isinstance(end_date, datetime.datetime):
+        end_date = end_date.date()
+
+    # 确保start_date是datetime.date类型
+    if isinstance(start_date, datetime.datetime):
+        start_date = start_date.date()
+
+    # 检查日期有效性
     if start_date > end_date:
         print(f"Warning: The specified end date ({end_date}) is not after the last known date ({last_known_date}). No forecasts will be generated.")
         return None
 
-    simple_forecast = forecast_income_simple(daily_income, product_info, daily_holdings, start_date, end_date)
-    complex_forecast = forecast_income_complex(daily_income, product_info, daily_holdings, trades, start_date, end_date)
+    try:
+        simple_forecast = forecast_income_simple(daily_income, product_info, daily_holdings, start_date, end_date)
+        complex_forecast = forecast_income_complex(daily_income, product_info, daily_holdings, trades, start_date, end_date)
 
-    # Calculate cumulative forecasts
-    simple_cumulative = pd.Series(simple_forecast).cumsum()
-    complex_cumulative = pd.Series(complex_forecast).cumsum()
+        # Calculate cumulative forecasts
+        simple_cumulative = pd.Series(simple_forecast).cumsum()
+        complex_cumulative = pd.Series(complex_forecast).cumsum()
 
-    return {
-        'simple': {
-            'daily': simple_forecast,
-            'cumulative': simple_cumulative.to_dict()
-        },
-        'complex': {
-            'daily': complex_forecast,
-            'cumulative': complex_cumulative.to_dict()
+        return {
+            'simple': {
+                'daily': simple_forecast,
+                'cumulative': simple_cumulative.to_dict()
+            },
+            'complex': {
+                'daily': complex_forecast,
+                'cumulative': complex_cumulative.to_dict()
+            }
         }
-    }
+    except Exception as e:
+        print(f"Error generating forecasts: {str(e)}")
+        return None
 
 def generate_sales_person_breakdowns(daily_income, client_sales):
     sales_person_breakdowns = {}

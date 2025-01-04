@@ -21,16 +21,10 @@ logger = logging.getLogger(__name__)
 # Load data
 start_date = datetime.date(2023, 12, 31)
 initial_holdings = load_initial_holdings('data/2023DEC.csv')
-trades = load_trades('data/TRADES_LOG.csv')
+trades, end_date = load_trades('data/TRADES_LOG.csv')  # 使用修改后的load_trades函数
 product_info = load_product_info('data/PRODUCT_INFO.csv')
 client_sales = load_client_sales('data/CLIENT_LIST.csv')
 
-# Get the latest trade date as end_date
-end_date = max(
-    max(fund_dates.keys())
-    for client_trades in trades.values()
-    for fund_dates in client_trades.values()
-)
 logger.info(f"Dynamically determined end_date as {end_date} based on latest trade")
 
 # Calculate data
@@ -231,10 +225,10 @@ def get_forecast():
         last_date = max(daily_income.keys())
         last_day_income = sum(sum(client.values()) for client in daily_income[last_date].values())
 
-        # Create a date range from the start of our data to 2024-12-31
+        # Create a date range from the start of our data to end_date plus 6 months
         start_date = min(daily_income.keys())
-        end_date = datetime.date(2024, 12, 31)
-        date_range = pd.date_range(start=start_date, end=end_date)
+        forecast_end_date = end_date + datetime.timedelta(days=180)  # Add 6 months for forecast
+        date_range = pd.date_range(start=start_date, end=forecast_end_date)
 
         # Create the forecast data
         forecast_data = []
