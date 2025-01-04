@@ -40,212 +40,123 @@ def clean_money_string(money_str):
 # 加载初始持仓
 def load_initial_holdings(filename, target_date='20231231'):
     holdings = {}
-    encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
-    
-    for encoding in encodings:
-        try:
-            with open(filename, 'r', encoding=encoding) as file:
-                csv_reader = csv.DictReader(file)
-                for row in csv_reader:
-                    date = row.get('SHARES_DATE', '')  # Assume there's a date column
-                    if date != target_date:
-                        continue  # Skip rows that don't match the target date
+    with open(filename, 'r', encoding='utf-8') as file:
+        csv_reader = csv.DictReader(file)
+        for row in csv_reader:
+            date = row.get('SHARES_DATE', '')  # Assume there's a date column
+            if date != target_date:
+                continue  # Skip rows that don't match the target date
 
-                    client_name = row['CLIENT_NAME']
-                    fund_name = row['FUND_NAME']
-                    money_value = clean_money_string(row['MONEY_VALUE'])
+            client_name = row['CLIENT_NAME']
+            fund_name = row['FUND_NAME']
+            money_value = clean_money_string(row['MONEY_VALUE'])
 
-                    if client_name not in holdings:
-                        holdings[client_name] = {}
-                    if fund_name not in holdings[client_name]:
-                        holdings[client_name][fund_name] = 0
-                    holdings[client_name][fund_name] += money_value  # Sum up multiple holdings
+            if client_name not in holdings:
+                holdings[client_name] = {}
+            if fund_name not in holdings[client_name]:
+                holdings[client_name][fund_name] = 0
+            holdings[client_name][fund_name] += money_value  # Sum up multiple holdings
 
-                print(f"Loaded initial holdings for {len(holdings)} clients as of {target_date} using {encoding} encoding.")
-                return holdings
-        except UnicodeDecodeError:
-            continue
-    
-    raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
+    print(f"Loaded initial holdings for {len(holdings)} clients as of {target_date}.")
+    return holdings
 
 # 加载交易记录
 def load_trades(filename):
     trades = {}
-    encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
-    
-    for encoding in encodings:
-        try:
-            print(f"Attempting to read {filename} with {encoding} encoding...")
-            df = pd.read_csv(filename, encoding=encoding)
-            
-            # 数据清洗：移除无效行
-            df = df.dropna(subset=['CONFIRMED_DATE', 'CLIENT_NAME', 'FUND_NAME', 'MONEY_CHANGED'])
-            
-            # 验证日期格式
-            def is_valid_date(date_str):
-                try:
-                    if not isinstance(date_str, str):
-                        return False
-                    if len(date_str) != 8:
-                        return False
-                    if not date_str.isdigit():
-                        return False
-                    return True
-                except:
-                    return False
+    with open(filename, 'r', encoding='utf-8') as file:
+        csv_reader = csv.DictReader(file)
+        for row in csv_reader:
+            try:
+                date = datetime.datetime.strptime(row['CONFIRMED_DATE'], '%Y%m%d').date()
+                client_name = row['CLIENT_NAME']
+                fund_name = row['FUND_NAME']
+                money_changed = clean_money_string(row['MONEY_CHANGED'])
 
-            # 过滤无效日期
-            valid_dates = df['CONFIRMED_DATE'].apply(is_valid_date)
-            invalid_dates = df[~valid_dates]['CONFIRMED_DATE'].unique()
-            if len(invalid_dates) > 0:
-                print(f"Warning: Found invalid dates: {invalid_dates}")
-                df = df[valid_dates]
+                if client_name not in trades:
+                    trades[client_name] = {}
+                if fund_name not in trades[client_name]:
+                    trades[client_name][fund_name] = {}
+                trades[client_name][fund_name][date] = money_changed
+            except ValueError as e:
+                print(f"Error processing row: {row}")
+                print(f"Error message: {str(e)}")
+                continue  # Skip this row and continue with the next
 
-            print(f"Converting dates to datetime format...")
-            df['CONFIRMED_DATE'] = pd.to_datetime(df['CONFIRMED_DATE'], format='%Y%m%d')
-            
-            latest_date = df['CONFIRMED_DATE'].max().date()
-            print(f"Latest date in trades: {latest_date}")
-            
-            # 处理交易数据
-            print("Processing trade records...")
-            for _, row in df.iterrows():
-                try:
-                    date = row['CONFIRMED_DATE'].date()
-                    client_name = row['CLIENT_NAME']
-                    fund_name = row['FUND_NAME']
-                    money_changed = clean_money_string(str(row['MONEY_CHANGED']))
-
-                    if client_name not in trades:
-                        trades[client_name] = {}
-                    if fund_name not in trades[client_name]:
-                        trades[client_name][fund_name] = {}
-                    if date not in trades[client_name][fund_name]:
-                        trades[client_name][fund_name][date] = []
-                    trades[client_name][fund_name][date].append(money_changed)
-
-                except Exception as e:
-                    print(f"Warning: Error processing row: {row}")
-                    print(f"Error details: {str(e)}")
-                    continue
-
-            print(f"Successfully loaded {len(df)} trade records for {len(trades)} clients")
-            return trades, latest_date
-
-        except UnicodeDecodeError:
-            continue
-        except Exception as e:
-            print(f"Error reading file with {encoding} encoding: {str(e)}")
-            continue
-    
-    raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
+    print(f"Loaded trades for {len(trades)} clients.")
+    return trades
 
 # 计算每日持仓
 def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
     holdings = {}
     dates = create_date_list(start_date, end_date)
-    jilin_bank_info = []  # 用于收集吉林银行的信息
 
-    try:
-        # Initialize with initial holdings
-        print(f"Initializing holdings from {start_date} to {end_date}")
-        for client, funds in initial_holdings.items():
-            if client not in holdings:
-                holdings[client] = {}
-            for fund, amount in funds.items():
-                if fund not in holdings[client]:
-                    holdings[client][fund] = {}
-                holdings[client][fund][start_date] = amount
-                if client == '吉林银行':
-                    jilin_bank_info.append(f"吉林银行初始持仓 - {fund}: {amount:.2f}")
+    # Initialize with initial holdings
+    for client, funds in initial_holdings.items():
+        if client not in holdings:
+            holdings[client] = {}
+        for fund, amount in funds.items():
+            if fund not in holdings[client]:
+                holdings[client][fund] = {}
+            holdings[client][fund][start_date] = amount
 
-        print(f"Initialized holdings with {len(holdings)} clients")
+    print("Initialized holdings with initial values.")
 
-        # Calculate daily holdings
-        for date in dates[1:]:  # Start from second date
-            print(f"\nProcessing date: {date}")
-            
-            # Process all clients and funds in trades
-            for client in set(list(holdings.keys()) + list(trades.keys())):
-                if client not in holdings:
-                    holdings[client] = {}
-                    print(f"  Adding new client: {client}")
-                
-                all_funds = set()
-                if client in holdings:
-                    all_funds.update(holdings[client].keys())
-                if client in trades:
-                    all_funds.update(trades[client].keys())
-                
-                for fund in all_funds:
+    # Calculate daily holdings
+    for date in dates[1:]:  # Start from second date
+        print(f"\nProcessing date: {date}")
+
+        # Process existing clients and funds
+        for client in holdings:
+            for fund in holdings[client]:
+                prev_date = date - datetime.timedelta(days=1)
+                prev_amount = holdings[client][fund][prev_date]
+
+                new_amount = prev_amount
+                if client in trades and fund in trades[client] and date in trades[client][fund]:
+                    trade_amount = trades[client][fund][date]
+                    new_amount = prev_amount + trade_amount
+                    print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f}")
+
+                holdings[client][fund][date] = new_amount
+
+        # Check for new clients or funds in trades
+        for client in trades:
+            for fund in trades[client]:
+                if date in trades[client][fund]:
+                    if client not in holdings:
+                        holdings[client] = {}
+                        print(f"  New client: {client}")
                     if fund not in holdings[client]:
                         holdings[client][fund] = {}
-                        print(f"  Adding new fund for {client}: {fund}")
-                    
-                    prev_date = date - datetime.timedelta(days=1)
-                    prev_amount = holdings[client][fund].get(prev_date, 0)
-                    new_amount = prev_amount
+                        print(f"  New fund for {client}: {fund}")
 
-                    if client in trades and fund in trades[client] and date in trades[client][fund]:
-                        # 处理同一天同一基金的多笔交易
-                        daily_trades = trades[client][fund][date]
-                        if isinstance(daily_trades, list):
-                            for trade_amount in daily_trades:
-                                new_amount += trade_amount
-                                print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f} (Trade: {trade_amount:.2f})")
-                        else:
-                            trade_amount = daily_trades
-                            new_amount += trade_amount
-                            print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f} (Trade: {trade_amount:.2f})")
+                    if date not in holdings[client][fund]:
+                        prev_date = date - datetime.timedelta(days=1)
+                        prev_amount = holdings[client][fund].get(prev_date, 0)
+                        trade_amount = trades[client][fund][date]
+                        new_amount = prev_amount + trade_amount
+                        holdings[client][fund][date] = new_amount
+                        print(f"  New trade - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f}")
 
-                    holdings[client][fund][date] = new_amount
+        # Print summary for the day
+        client_count = len(holdings)
+        fund_count = sum(len(funds) for funds in holdings.values())
+        print(f"End of day summary - Clients: {client_count}, Funds: {fund_count}")
 
-                    # 记录吉林银行的持仓变化
-                    if client == '吉林银行' and new_amount != prev_amount:
-                        jilin_bank_info.append(f"吉林银行 - {fund} 在 {date} 的持仓变化: {prev_amount:.2f} -> {new_amount:.2f}")
-
-            # Print summary for the day
-            client_count = len(holdings)
-            fund_count = sum(len(funds) for funds in holdings.values())
-            print(f"End of day summary - Clients: {client_count}, Funds: {fund_count}")
-
-            # 记录吉林银行的每日总持仓
-            if '吉林银行' in holdings:
-                total_holding = sum(holdings['吉林银行'][fund].get(date, 0) for fund in holdings['吉林银行'])
-                jilin_bank_info.append(f"吉林银行在 {date} 的总持仓: {total_holding:.2f}")
-
-        # 在最后打印所有吉林银行的信息
-        if jilin_bank_info:
-            print("\n吉林银行持仓信息汇总:")
-            for info in jilin_bank_info:
-                print(info)
-
-        return holdings
-
-    except Exception as e:
-        print(f"Error in calculate_daily_holdings: {str(e)}")
-        raise
+    return holdings
 
 # 加载产品信息
 def load_product_info(filename):
     product_info = {}
-    encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
-    
-    for encoding in encodings:
-        try:
-            with open(filename, 'r', encoding=encoding) as file:
-                csv_reader = csv.DictReader(file)
-                for row in csv_reader:
-                    fund_name = row['FUND_NAME']
-                    ma_fees_daily = float(row['MA_FEES_DAILY'])
-                    product_info[fund_name] = ma_fees_daily
-                
-                print(f"Loaded product info for {len(product_info)} funds using {encoding} encoding.")
-                return product_info
-        except UnicodeDecodeError:
-            continue
-    
-    raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
+    with open(filename, 'r', encoding='utf-8') as file:
+        csv_reader = csv.DictReader(file)
+        for row in csv_reader:
+            fund_name = row['FUND_NAME']
+            ma_fees_daily = float(row['MA_FEES_DAILY'])
+            product_info[fund_name] = ma_fees_daily
+
+    print(f"Loaded product info for {len(product_info)} funds.")
+    return product_info
 
 # 加载客户销售信息
 def load_client_sales(filename):
@@ -276,81 +187,44 @@ def load_client_sales(filename):
 
 
 def calculate_daily_income(daily_holdings, product_info, client_sales):
-    try:
-        daily_income = {}
-        sales_income = {}
-        client_income = {}
+    daily_income = {}
+    sales_income = {}
+    client_income = {}
 
-        # 收集所有日期
-        print("Collecting all dates from holdings...")
-        all_dates = set()
-        for client_funds in daily_holdings.values():
-            for fund_holdings in client_funds.values():
-                all_dates.update(fund_holdings.keys())
-        dates = sorted(list(all_dates))
-        print(f"Found {len(dates)} unique dates from {dates[0]} to {dates[-1]}")
+    all_dates = set()
+    for client_funds in daily_holdings.values():
+        for fund_holdings in client_funds.values():
+            all_dates.update(fund_holdings.keys())
+    dates = sorted(list(all_dates))
 
-        # 处理每个日期的收入
-        for date in dates:
-            print(f"\nProcessing income for date: {date}")
-            daily_income[date] = {}
-            sales_income[date] = {}
-            client_income[date] = {}
-            
-            missing_product_info = set()  # 记录缺失产品信息
-            missing_holdings = set()      # 记录缺失持仓信息
+    for date in dates:
+        daily_income[date] = {}
+        sales_income[date] = {}
+        client_income[date] = {}
 
-            # 处理每个客户的收入
-            for client, funds in daily_holdings.items():
-                client_daily_income = {}
-                for fund, holdings in funds.items():
-                    if date in holdings:
-                        if fund in product_info:
-                            fund_income = holdings[date] * product_info[fund]
-                            client_daily_income[fund] = fund_income
-                        else:
-                            missing_product_info.add(fund)
-                            print(f"Warning: No product info for fund {fund}")
+        for client, funds in daily_holdings.items():
+            client_daily_income = {}
+            for fund, holdings in funds.items():
+                if date in holdings:
+                    if fund in product_info:
+                        fund_income = holdings[date] * product_info[fund]
+                        client_daily_income[fund] = fund_income
                     else:
-                        missing_holdings.add((client, fund))
-                        print(f"Warning: No holding data for {client} - {fund} on {date}")
+                        print(f"Warning: No product info for fund {fund}")
+                else:
+                    print(f"Warning: No holding data for {client} - {fund} on {date}")
 
-                daily_income[date][client] = client_daily_income
-                client_income[date][client] = sum(client_daily_income.values())
+            daily_income[date][client] = client_daily_income
+            client_income[date][client] = sum(client_daily_income.values())
 
-                # 处理销售人员收入
-                sales_person = client_sales.get(client, "Unknown")
-                if sales_person not in sales_income[date]:
-                    sales_income[date][sales_person] = 0
-                sales_income[date][sales_person] += sum(client_daily_income.values())
+            sales_person = client_sales.get(client, "Unknown")
+            if sales_person not in sales_income[date]:
+                sales_income[date][sales_person] = 0
+            sales_income[date][sales_person] += sum(client_daily_income.values())
 
-            # 打印每日统计信息
-            total_income = sum(sum(client_funds.values()) for client_funds in daily_income[date].values())
-            total_clients = len(daily_income[date])
-            total_sales = len(sales_income[date])
-            print(f"Date {date} summary:")
-            print(f"  Total income: {total_income:.2f}")
-            print(f"  Total clients: {total_clients}")
-            print(f"  Total sales persons: {total_sales}")
-            if missing_product_info:
-                print(f"  Missing product info for funds: {', '.join(missing_product_info)}")
-            if missing_holdings:
-                print(f"  Missing holdings for {len(missing_holdings)} client-fund pairs")
+        print(f"Processed income for date: {date}")
 
-        # 打印总体统计信息
-        print("\nOverall statistics:")
-        total_dates = len(dates)
-        total_unique_clients = len(set(client for date_data in daily_income.values() for client in date_data.keys()))
-        total_unique_sales = len(set(sales for date_data in sales_income.values() for sales in date_data.keys()))
-        print(f"Processed {total_dates} dates")
-        print(f"Total unique clients: {total_unique_clients}")
-        print(f"Total unique sales persons: {total_unique_sales}")
-
-        return daily_income, sales_income, client_income
-
-    except Exception as e:
-        print(f"Error in calculate_daily_income: {str(e)}")
-        raise
+    return daily_income, sales_income, client_income
 
 def calculate_cumulative_income(daily_income):
     cumulative_income = {}
@@ -455,42 +329,27 @@ def generate_forecasts(daily_income, product_info, daily_holdings, trades, end_d
     last_known_date = max(daily_income.keys())
     start_date = last_known_date + timedelta(days=1)
 
-    # 确保end_date是datetime.date类型
-    if isinstance(end_date, str):
-        end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
-    elif isinstance(end_date, datetime.datetime):
-        end_date = end_date.date()
-
-    # 确保start_date是datetime.date类型
-    if isinstance(start_date, datetime.datetime):
-        start_date = start_date.date()
-
-    # 检查日期有效性
     if start_date > end_date:
         print(f"Warning: The specified end date ({end_date}) is not after the last known date ({last_known_date}). No forecasts will be generated.")
         return None
 
-    try:
-        simple_forecast = forecast_income_simple(daily_income, product_info, daily_holdings, start_date, end_date)
-        complex_forecast = forecast_income_complex(daily_income, product_info, daily_holdings, trades, start_date, end_date)
+    simple_forecast = forecast_income_simple(daily_income, product_info, daily_holdings, start_date, end_date)
+    complex_forecast = forecast_income_complex(daily_income, product_info, daily_holdings, trades, start_date, end_date)
 
-        # Calculate cumulative forecasts
-        simple_cumulative = pd.Series(simple_forecast).cumsum()
-        complex_cumulative = pd.Series(complex_forecast).cumsum()
+    # Calculate cumulative forecasts
+    simple_cumulative = pd.Series(simple_forecast).cumsum()
+    complex_cumulative = pd.Series(complex_forecast).cumsum()
 
-        return {
-            'simple': {
-                'daily': simple_forecast,
-                'cumulative': simple_cumulative.to_dict()
-            },
-            'complex': {
-                'daily': complex_forecast,
-                'cumulative': complex_cumulative.to_dict()
-            }
+    return {
+        'simple': {
+            'daily': simple_forecast,
+            'cumulative': simple_cumulative.to_dict()
+        },
+        'complex': {
+            'daily': complex_forecast,
+            'cumulative': complex_cumulative.to_dict()
         }
-    except Exception as e:
-        print(f"Error generating forecasts: {str(e)}")
-        return None
+    }
 
 def generate_sales_person_breakdowns(daily_income, client_sales):
     sales_person_breakdowns = {}
@@ -828,7 +687,8 @@ def calculate_all_funds_client_breakdown(daily_income):
 
     result = []
     for fund, total_income in fund_income.items():
-        client_breakdown = sorted(fund_client_breakdown[fund].items(), key=lambda x: x[1], reverse=True)[:10]  # Top 10 clients per fund
+        client_breakdown = sorted(fund_client_breakdown[fund].items(), key=lambda x: x[1], reverse=True)[
+                           :10]  # Top 10 clients per fund
         result.append({
             "fund": fund,
             "totalIncome": total_income,
@@ -841,7 +701,7 @@ def calculate_all_funds_client_breakdown(daily_income):
 
 def main():
     start_date = datetime.date(2023, 12, 31)
-    end_date = datetime.date(2024, 8, 31)
+    end_date = datetime.date(2024, 6, 30)
 
     print("Loading initial holdings...")
     initial_holdings = load_initial_holdings('data/2023DEC.csv')
