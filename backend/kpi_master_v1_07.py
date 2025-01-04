@@ -63,33 +63,56 @@ def load_initial_holdings(filename, target_date='20231231'):
 # 加载交易记录
 def load_trades(filename):
     trades = {}
-    with open(filename, 'r', encoding='utf-8') as file:
-        csv_reader = csv.DictReader(file)
-        for row in csv_reader:
-            try:
-                date = datetime.datetime.strptime(row['CONFIRMED_DATE'], '%Y%m%d').date()
-                client_name = row['CLIENT_NAME']
-                fund_name = row['FUND_NAME']
-                money_changed = clean_money_string(row['MONEY_CHANGED'])
+    encodings = ['utf-8', 'gbk', 'gb18030', 'gb2312', 'iso-8859-1']
+    
+    for encoding in encodings:
+        try:
+            df = pd.read_csv(filename, encoding=encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        raise ValueError(f"Unable to decode {filename} with any of the attempted encodings.")
+    
+    df['CONFIRMED_DATE'] = pd.to_datetime(df['CONFIRMED_DATE'], format='%Y%m%d')
+    latest_date = df['CONFIRMED_DATE'].max().date()
+    
+    print("\n=== 信泰人寿交易记录追踪 ===")
+    for _, row in df.iterrows():
+        date = row['CONFIRMED_DATE'].date()
+        client_name = row['CLIENT_NAME']
+        fund_name = row['FUND_NAME']
+        money_changed = clean_money_string(row['MONEY_CHANGED'])
 
-                if client_name not in trades:
-                    trades[client_name] = {}
-                if fund_name not in trades[client_name]:
-                    trades[client_name][fund_name] = {}
-                trades[client_name][fund_name][date] = money_changed
-            except ValueError as e:
-                print(f"Error processing row: {row}")
-                print(f"Error message: {str(e)}")
-                continue  # Skip this row and continue with the next
+        if client_name not in trades:
+            trades[client_name] = {}
+        if fund_name not in trades[client_name]:
+            trades[client_name][fund_name] = {}
+        if date not in trades[client_name][fund_name]:
+            trades[client_name][fund_name][date] = []
+        trades[client_name][fund_name][date].append(money_changed)
 
-    print(f"Loaded trades for {len(trades)} clients.")
-    return trades
+        # 追踪信泰人寿的交易
+        if client_name == "信泰人寿":
+            print(f"发现交易: 日期={date}, 基金={fund_name}, 金额变动={money_changed}")
+
+    if "信泰人寿" in trades:
+        print("\n信泰人寿交易汇总:")
+        for fund, dates in trades["信泰人寿"].items():
+            print(f"\n基金 {fund}:")
+            for date, amounts in sorted(dates.items()):
+                total = sum(amounts)
+                print(f"  {date}: {amounts} (总计: {total})")
+
+    print(f"\nLoaded trades for {len(trades)} clients.")
+    return trades, latest_date
 
 # 计算每日持仓
 def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
     holdings = {}
     dates = create_date_list(start_date, end_date)
 
+    print("\n=== 信泰人寿持仓追踪 ===")
     # Initialize with initial holdings
     for client, funds in initial_holdings.items():
         if client not in holdings:
@@ -98,26 +121,47 @@ def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
             if fund not in holdings[client]:
                 holdings[client][fund] = {}
             holdings[client][fund][start_date] = amount
+            if client == "信泰人寿":
+                print(f"初始持仓: 基金={fund}, 金额={amount}")
 
-    print("Initialized holdings with initial values.")
+    print("\nInitialized holdings with initial values.")
 
     # Calculate daily holdings
+    prev_holdings = {}  # 用于存储信泰人寿的上一次持仓记录
     for date in dates[1:]:  # Start from second date
-        print(f"\nProcessing date: {date}")
-
         # Process existing clients and funds
         for client in holdings:
+            if client == "信泰人寿":
+                has_changes = False
+                changes = []
+                
             for fund in holdings[client]:
                 prev_date = date - datetime.timedelta(days=1)
                 prev_amount = holdings[client][fund][prev_date]
 
                 new_amount = prev_amount
                 if client in trades and fund in trades[client] and date in trades[client][fund]:
-                    trade_amount = trades[client][fund][date]
-                    new_amount = prev_amount + trade_amount
-                    print(f"  Updated - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f}")
+                    # 处理同一天同一基金的多笔交易
+                    daily_trades = trades[client][fund][date]
+                    if isinstance(daily_trades, list):
+                        for trade_amount in daily_trades:
+                            new_amount += trade_amount
+                            if client == "信泰人寿":
+                                has_changes = True
+                                changes.append(f"基金={fund}, 前日={prev_amount}, 变动={trade_amount}, 新持仓={new_amount}")
+                    else:
+                        trade_amount = daily_trades
+                        new_amount += trade_amount
+                        if client == "信泰人寿":
+                            has_changes = True
+                            changes.append(f"基金={fund}, 前日={prev_amount}, 变动={trade_amount}, 新持仓={new_amount}")
 
                 holdings[client][fund][date] = new_amount
+                
+            if client == "信泰人寿" and has_changes:
+                print(f"\n日期: {date} 持仓变动:")
+                for change in changes:
+                    print(change)
 
         # Check for new clients or funds in trades
         for client in trades:
@@ -125,23 +169,24 @@ def calculate_daily_holdings(initial_holdings, trades, start_date, end_date):
                 if date in trades[client][fund]:
                     if client not in holdings:
                         holdings[client] = {}
-                        print(f"  New client: {client}")
                     if fund not in holdings[client]:
                         holdings[client][fund] = {}
-                        print(f"  New fund for {client}: {fund}")
 
                     if date not in holdings[client][fund]:
                         prev_date = date - datetime.timedelta(days=1)
                         prev_amount = holdings[client][fund].get(prev_date, 0)
-                        trade_amount = trades[client][fund][date]
-                        new_amount = prev_amount + trade_amount
+                        daily_trades = trades[client][fund][date]
+                        new_amount = prev_amount
+                        if isinstance(daily_trades, list):
+                            for trade_amount in daily_trades:
+                                new_amount += trade_amount
+                        else:
+                            new_amount += daily_trades
                         holdings[client][fund][date] = new_amount
-                        print(f"  New trade - {client} - {fund}: {prev_amount:.2f} -> {new_amount:.2f}")
 
         # Print summary for the day
         client_count = len(holdings)
         fund_count = sum(len(funds) for funds in holdings.values())
-        print(f"End of day summary - Clients: {client_count}, Funds: {fund_count}")
 
     return holdings
 
@@ -191,12 +236,14 @@ def calculate_daily_income(daily_holdings, product_info, client_sales):
     sales_income = {}
     client_income = {}
 
+    print("\n=== 信泰人寿管理费收入追踪 ===")
     all_dates = set()
     for client_funds in daily_holdings.values():
         for fund_holdings in client_funds.values():
             all_dates.update(fund_holdings.keys())
     dates = sorted(list(all_dates))
 
+    prev_income = {}  # 用于存储信泰人寿的上一次收入记录
     for date in dates:
         daily_income[date] = {}
         sales_income[date] = {}
@@ -204,16 +251,33 @@ def calculate_daily_income(daily_holdings, product_info, client_sales):
 
         for client, funds in daily_holdings.items():
             client_daily_income = {}
+            if client == "信泰人寿":
+                has_changes = False
+                changes = []
+                
             for fund, holdings in funds.items():
                 if date in holdings:
                     if fund in product_info:
                         fund_income = holdings[date] * product_info[fund]
                         client_daily_income[fund] = fund_income
+                        
+                        if client == "信泰人寿":
+                            # 检查是否与上一次记录有变化
+                            prev_fund_income = prev_income.get(fund, None)
+                            if prev_fund_income is None or abs(fund_income - prev_fund_income) > 0.000001:  # 考虑浮点数精度
+                                has_changes = True
+                                changes.append(f"基金={fund}, 持仓={holdings[date]}, 费率={product_info[fund]}, 收入={fund_income}")
+                                prev_income[fund] = fund_income
                     else:
                         print(f"Warning: No product info for fund {fund}")
                 else:
-                    print(f"Warning: No holding data for {client} - {fund} on {date}")
+                    pass
 
+            if client == "信泰人寿" and has_changes:
+                print(f"\n日期: {date} 收入变动:")
+                for change in changes:
+                    print(change)
+                    
             daily_income[date][client] = client_daily_income
             client_income[date][client] = sum(client_daily_income.values())
 
@@ -222,7 +286,6 @@ def calculate_daily_income(daily_holdings, product_info, client_sales):
                 sales_income[date][sales_person] = 0
             sales_income[date][sales_person] += sum(client_daily_income.values())
 
-        print(f"Processed income for date: {date}")
 
     return daily_income, sales_income, client_income
 
@@ -317,8 +380,12 @@ def forecast_income_complex(daily_income, product_info, daily_holdings, trades, 
         for client, client_trades in trades.items():
             for fund, fund_trades in client_trades.items():
                 if date in fund_trades:
-                    trade_amount = fund_trades[date]
-                    forecast[date] += trade_amount * product_info.get(fund, 0)
+                    daily_trades = fund_trades[date]
+                    if isinstance(daily_trades, list):
+                        for trade_amount in daily_trades:
+                            forecast[date] += trade_amount * product_info.get(fund, 0)
+                    else:
+                        forecast[date] += daily_trades * product_info.get(fund, 0)
 
     return forecast.to_dict()
 
@@ -328,9 +395,15 @@ def generate_forecasts(daily_income, product_info, daily_holdings, trades, end_d
     """
     last_known_date = max(daily_income.keys())
     start_date = last_known_date + timedelta(days=1)
+    
+    print(f"Generating forecasts:")
+    print(f"- Last known date: {last_known_date}")
+    print(f"- Forecast start date: {start_date}")
+    print(f"- Forecast end date: {end_date}")
 
     if start_date > end_date:
         print(f"Warning: The specified end date ({end_date}) is not after the last known date ({last_known_date}). No forecasts will be generated.")
+        print(f"Date comparison: start_date={start_date}, end_date={end_date}")
         return None
 
     simple_forecast = forecast_income_simple(daily_income, product_info, daily_holdings, start_date, end_date)

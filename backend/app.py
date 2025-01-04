@@ -20,18 +20,34 @@ logger = logging.getLogger(__name__)
 
 # Load data
 start_date = datetime.date(2023, 12, 31)
-end_date = datetime.date(2024, 12, 31)
 initial_holdings = load_initial_holdings('data/2023DEC.csv')
-trades = load_trades('data/TRADES_LOG.csv')
+trades, latest_date = load_trades('data/TRADES_LOG.csv')  # 现在获取最新交易日期
+end_date = datetime.date(2024, 12, 31)  # 保持目标结束日期不变
+print("\n=== 初始化配置 ===")
+print(f"开始日期: {start_date}")
+print(f"最新交易日期: {latest_date}")
+print(f"目标结束日期: {end_date}")
+
 product_info = load_product_info('data/PRODUCT_INFO.csv')
 client_sales = load_client_sales('data/CLIENT_LIST.csv')
 
 # Calculate data
+print("\n=== 计算每日持仓 ===")
 daily_holdings = calculate_daily_holdings(initial_holdings, trades, start_date, end_date)
+print(f"持仓计算时间范围: {min(next(iter(next(iter(daily_holdings.values())).values())).keys())} 到 {max(next(iter(next(iter(daily_holdings.values())).values())).keys())}")
+
+print("\n=== 计算收入数据 ===")
 daily_income, sales_income, client_income = calculate_daily_income(daily_holdings, product_info, client_sales)
+print(f"收入计算时间范围: {min(daily_income.keys())} 到 {max(daily_income.keys())}")
+
+print("\n=== 计算累计收入 ===")
 cumulative_sales_income = calculate_cumulative_income(sales_income)
 cumulative_client_income = calculate_cumulative_income(client_income)
+print(f"累计收入时间范围: {min(cumulative_sales_income.keys())} 到 {max(cumulative_sales_income.keys())}")
+
 client_stats, fund_stats, sales_stats = show_income_statistics(daily_income, sales_income, client_income, daily_holdings, product_info)
+
+print("\n=== 生成预测数据 ===")
 forecasts = generate_forecasts(daily_income, product_info, daily_holdings, trades, end_date)
 sales_person_breakdowns = generate_sales_person_breakdowns(daily_income, client_sales)
 client_breakdowns = generate_client_breakdowns(daily_income)
@@ -40,6 +56,9 @@ client_breakdowns = generate_client_breakdowns(daily_income)
 def get_dashboard():
     try:
         logger.info("Processing dashboard data")
+        logger.debug(f"Date range: start_date={start_date}, end_date={end_date}")
+        logger.debug(f"Latest trade date: {latest_date}")
+        logger.debug(f"Available dates in daily_income: {sorted(daily_income.keys())}")
         total_income = sum(sum(client.values()) for client in daily_income[max(daily_income.keys())].values())
         total_clients = len(set(client for day in daily_income.values() for client in day.keys()))
         total_funds = len(set(fund for day in daily_income.values() for client in day.values() for fund in client.keys()))
@@ -67,6 +86,7 @@ def get_dashboard():
 def get_sales():
     try:
         logger.info("Processing sales data")
+        logger.debug(f"Sales data date range: {min(sales_income.keys())} to {max(sales_income.keys())}")
         sales_data = {
             'salesPersons': [],
             'dailyContribution': [],
@@ -214,20 +234,24 @@ def get_funds():
         logger.error(traceback.format_exc())
         return jsonify({'error': 'An error occurred while processing funds data'}), 500
 
-
 @app.route('/api/forecast')
 def get_forecast():
     try:
         logger.info("Processing forecast data")
+        logger.debug(f"Forecast configuration: start_date={start_date}, end_date={end_date}")
+        logger.debug(f"Latest trade date: {latest_date}")
 
         # Get the last day's total income
         last_date = max(daily_income.keys())
+        logger.debug(f"Last known date: {last_date}")
         last_day_income = sum(sum(client.values()) for client in daily_income[last_date].values())
 
         # Create a date range from the start of our data to 2024-12-31
-        start_date = min(daily_income.keys())
-        end_date = datetime.date(2024, 12, 31)
-        date_range = pd.date_range(start=start_date, end=end_date)
+        forecast_start = min(daily_income.keys())
+        forecast_end = datetime.date(2024, 12, 31)
+        date_range = pd.date_range(start=forecast_start, end=forecast_end)
+        logger.debug(f"Forecast date range: {forecast_start} to {forecast_end}")
+        logger.debug(f"Total days in forecast: {len(date_range)}")
 
         # Create the forecast data
         forecast_data = []
