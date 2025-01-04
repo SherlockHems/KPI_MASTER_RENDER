@@ -701,7 +701,7 @@ def calculate_all_funds_client_breakdown(daily_income):
 
 def main():
     start_date = datetime.date(2023, 12, 31)
-    end_date = datetime.date(2024, 6, 30)
+    end_date = datetime.date(2024, 12, 31)
 
     print("Loading initial holdings...")
     initial_holdings = load_initial_holdings('data/2023DEC.csv')
